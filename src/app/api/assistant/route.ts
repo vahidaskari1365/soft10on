@@ -4,6 +4,8 @@ import { faDigits, formatJDate, formatTime, formatDayRelative, weekdayName } fro
 import { formatToman } from '@/lib/format'
 import { llmChat, extractJSON } from '@/lib/ai'
 
+export const maxDuration = 60
+
 type Chip = { label: string; payload: { action: string; [k: string]: unknown } }
 type TraceStep = { key: string; label: string; state: 'done' | 'active' | 'pending' }
 type BotMessage = { text: string; kind?: 'info' | 'success' | 'warn' }

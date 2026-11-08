@@ -2,19 +2,20 @@ import { db } from '@/lib/db'
 import ZAI from 'z-ai-web-dev-sdk'
 
 // ------------------------------------------------------------------
-// لایه‌ی هوش مصنوعی 10on — نسخه ۳
+// لایه‌ی هوش مصنوعی 10on — نسخه ۴
 // زنجیره‌ی پرووایدر (اولین گزینه‌ی سالم):
 //   ۱) تنظیمات داخل نرم‌افزار (پنل مدیریت → تنظیمات؛ ذخیره در SystemMeta)
 //      → هر سرویس OpenAI‌سازگار بدون دیپلوی مجدد وصل می‌شود
 //   ۲) متغیرهای محیطی AI_API_KEY + AI_BASE_URL
-//   ۳) SDK داخلی (GLM) — در محیط دمو/سندباکس همیشه فعال
-//   ۴) fallback قانون‌محور ایجنت‌ها
+//   ۳) موتور رایگان بدون کلید (Pollinations) — همیشه فعال، روی هر هاستی کار می‌کند
+//   ۴) SDK داخلی (GLM) — در محیط دمو/سندباکس
+//   ۵) fallback قانون‌محور ایجنت‌ها
 // ------------------------------------------------------------------
 
 export type LLMMessage = { role: 'system' | 'user' | 'assistant'; content: string }
 
 type ProviderInfo = {
-  kind: 'custom' | 'env' | 'sdk' | 'none'
+  kind: 'custom' | 'env' | 'free' | 'sdk' | 'none'
   label: string
   model?: string
 }
@@ -80,6 +81,29 @@ async function customProviderChat(
   }
 }
 
+// --- موتور رایگان بدون کلید (Pollinations — OpenAI‌سازگار، بدون ثبت‌نام) ---
+
+async function freeProviderChat(messages: LLMMessage[]): Promise<string | null> {
+  try {
+    const res = await fetch('https://text.pollinations.ai/openai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'openai',
+        messages,
+        temperature: 0.2,
+        max_tokens: 1400,
+      }),
+      signal: AbortSignal.timeout(55_000),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+    return data.choices?.[0]?.message?.content ?? null
+  } catch {
+    return null
+  }
+}
+
 /** پاسخ متنی از LLM؛ در صورت قطعی null */
 export async function llmChat(messages: LLMMessage[]): Promise<string | null> {
   // ۱) تنظیمات داخل نرم‌افزار
@@ -99,7 +123,10 @@ export async function llmChat(messages: LLMMessage[]): Promise<string | null> {
     })
     if (out && out.trim()) return out
   }
-  // ۳) SDK داخلی
+  // ۳) موتور رایگان بدون کلید — تضمین کارکرد هوش مصنوعی روی هر هاستی
+  const freeOut = await freeProviderChat(messages)
+  if (freeOut && freeOut.trim()) return freeOut
+  // ۴) SDK داخلی
   try {
     const z = await zai()
     const completion = await z.chat.completions.create({
@@ -120,12 +147,7 @@ export async function aiEngine(): Promise<ProviderInfo> {
   if (process.env.AI_API_KEY && process.env.AI_BASE_URL) {
     return { kind: 'env', label: `پرووایدر محیطی (${process.env.AI_MODEL ?? 'gpt-4o-mini'})` }
   }
-  try {
-    await zai()
-    return { kind: 'sdk', label: 'موتور داخلی GLM' }
-  } catch {
-    return { kind: 'none', label: 'قانون‌محور (بدون هوش مصنوعی)' }
-  }
+  return { kind: 'free', label: 'موتور رایگان ابری (بدون نیاز به کلید)' }
 }
 
 /** تست اتصال پرووایدر از پنل تنظیمات */
