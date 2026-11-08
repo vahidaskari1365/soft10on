@@ -30,6 +30,15 @@ model Branch {
   purchases  Purchase[]
   expenses   Expense[]
   productSales ProductSale[]
+  invoices   Invoice[]
+  payments   Payment[]
+  cashAccounts CashAccount[]
+  checks     Check[]
+  payrolls   Payroll[]
+  medicalRecords MedicalRecord[]
+  messages   Message[]
+  waitlists  Waitlist[]
+  publicBookings PublicBooking[]
 }
 
 model User {
@@ -64,6 +73,8 @@ model Doctor {
   active         Boolean      @default(true)
   user           User?
   appointments   Appointment[]
+  medicalRecords MedicalRecord[]
+  waitlists      Waitlist[]
 }
 
 model Service {
@@ -73,6 +84,7 @@ model Service {
   price        Float   // تومان
   durationMin  Int     @default(30)
   appointments Appointment[]
+  publicBookings PublicBooking[]
 }
 
 model Patient {
@@ -84,11 +96,20 @@ model Patient {
   birthYear          Int?
   notes              String?
   incompleteTreatment Boolean      @default(false) // درمان نیمه‌کاره
+  allergies          String?       // حساسیت‌های دارویی (جدا با ویرگول)
+  isPregnant         Boolean       @default(false) // هشدار بارداری
+  chronicNote        String?       // بیماری زمینه‌ای
   createdAt          DateTime      @default(now())
   appointments       Appointment[]
   tasks              Task[]
   productSales       ProductSale[]
   user               User?
+  invoices           Invoice[]
+  payments           Payment[]
+  checks             Check[]
+  medicalRecords     MedicalRecord[]
+  messages           Message[]
+  waitlists          Waitlist[]
 }
 
 model Appointment {
@@ -199,4 +220,216 @@ model Expense {
   category    String   // RENT | SALARY | UTILITIES | MARKETING | EQUIPMENT | OTHER
   amount      Float
   description String
+}
+
+// ---------- حسابداری کامل ----------
+
+model CashAccount {
+  id             String      @id @default(cuid())
+  branchId       String?
+  branch         Branch?     @relation(fields: [branchId], references: [id])
+  name           String      // صندوق شعبه سعادت‌آباد / بانک ملت جاری
+  type           String      @default("CASH") // CASH | BANK
+  bankName       String?
+  accountNo      String?
+  openingBalance Float       @default(0)
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  payments       Payment[]
+  checks         Check[]
+}
+
+model Invoice {
+  id        String        @id @default(cuid())
+  branchId  String?
+  branch    Branch?       @relation(fields: [branchId], references: [id])
+  number    Int           @unique
+  patientId String?
+  patient   Patient?      @relation(fields: [patientId], references: [id])
+  date      DateTime
+  status    String        @default("ISSUED") // DRAFT | ISSUED | PARTIAL | PAID | CANCELLED
+  subtotal  Float
+  discount  Float         @default(0)
+  total     Float
+  note      String?
+  items     InvoiceItem[]
+  payments  Payment[]
+  createdAt DateTime      @default(now())
+
+  @@index([date])
+}
+
+model InvoiceItem {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  kind      String   // SERVICE | PRODUCT | CUSTOM
+  refId     String?
+  title     String
+  qty       Int      @default(1)
+  unitPrice Float
+  total     Float
+}
+
+model Payment {
+  id            String       @id @default(cuid())
+  branchId      String?
+  branch        Branch?      @relation(fields: [branchId], references: [id])
+  date          DateTime
+  direction     String       // IN | OUT
+  method        String       @default("CASH") // CASH | CARD | POS | ONLINE | TRANSFER | CHECK
+  amount        Float
+  cashAccountId String?
+  cashAccount   CashAccount? @relation(fields: [cashAccountId], references: [id])
+  patientId     String?
+  patient       Patient?     @relation(fields: [patientId], references: [id])
+  invoiceId     String?
+  invoice       Invoice?     @relation(fields: [invoiceId], references: [id])
+  transferGroup String?      // شناسه‌ی جفتِ انتقال بین دو حساب
+  description   String
+  refType       String       @default("OTHER") // INVOICE | EXPENSE | PURCHASE | PAYROLL | TRANSFER | OTHER
+  refId         String?
+  createdAt     DateTime     @default(now())
+
+  @@index([date])
+}
+
+model Check {
+  id            String       @id @default(cuid())
+  branchId      String?
+  branch        Branch?      @relation(fields: [branchId], references: [id])
+  direction     String       // RECEIVED | ISSUED
+  number        String
+  bank          String
+  dueDate       DateTime
+  amount        Float
+  status        String       @default("IN_HAND") // IN_HAND | DEPOSITED | CLEARED | BOUNCED | CANCELLED
+  patientId     String?
+  patient       Patient?     @relation(fields: [patientId], references: [id])
+  supplierName  String?
+  cashAccountId String?
+  cashAccount   CashAccount? @relation(fields: [cashAccountId], references: [id])
+  note          String?
+  createdAt     DateTime     @default(now())
+
+  @@index([dueDate])
+}
+
+model Payroll {
+  id         String    @id @default(cuid())
+  branchId   String?
+  branch     Branch?   @relation(fields: [branchId], references: [id])
+  month      String    // کلید جلالی 1405-08
+  staffName  String
+  role       String    // نقش سازمانی
+  userId     String?
+  baseSalary Float
+  overtime   Float     @default(0)
+  bonus      Float     @default(0)
+  deductions Float     @default(0)
+  commission Float     @default(0) // کارانه محاسبه‌شده از نوبت‌های DONE همان ماه
+  total      Float
+  status     String    @default("PENDING") // PENDING | PAID
+  paidAt     DateTime?
+  method     String?
+  note       String?
+  createdAt  DateTime  @default(now())
+
+  @@unique([month, staffName])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  phone     String?
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+// ---------- پرونده هوشمند و ارتباطات ----------
+
+model MedicalRecord {
+  id        String   @id @default(cuid())
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  doctorId  String?
+  doctor    Doctor?  @relation(fields: [doctorId], references: [id])
+  date      DateTime
+  type      String   @default("NOTE") // VISIT | TEST | IMAGING | NOTE | ALLERGY
+  title     String
+  content   String
+  aiSummary String?
+  source    String   @default("MANUAL") // MANUAL | VOICE | PHOTO | ASSISTANT
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([patientId])
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  branchId    String?
+  branch      Branch?   @relation(fields: [branchId], references: [id])
+  patientId   String
+  patient     Patient   @relation(fields: [patientId], references: [id])
+  direction   String    // IN (از بیمار) | OUT (از کلینیک)
+  channel     String    @default("CHAT") // CHAT | SMS | BALE | WHATSAPP
+  body        String
+  fromUserId  String?
+  aiGenerated Boolean   @default(false)
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([patientId])
+}
+
+model Waitlist {
+  id        String   @id @default(cuid())
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  doctorId  String?
+  doctor    Doctor?  @relation(fields: [doctorId], references: [id])
+  note      String?
+  priority  String   @default("NORMAL") // LOW | NORMAL | URGENT
+  status    String   @default("WAITING") // WAITING | OFFERED | BOOKED | CANCELLED
+  createdAt DateTime @default(now())
+}
+
+model KnowledgeBase {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  category  String   @default("GENERAL")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model PublicBooking {
+  id          String    @id @default(cuid())
+  branchId    String?
+  branch      Branch?   @relation(fields: [branchId], references: [id])
+  name        String
+  phone       String
+  serviceId   String?
+  service     Service?  @relation(fields: [serviceId], references: [id])
+  preferredAt DateTime?
+  note        String?
+  status      String    @default("NEW") // NEW | ACCEPTED | REJECTED | CONVERTED
+  createdAt   DateTime  @default(now())
+}
+
+model AiCall {
+  id        String   @id @default(cuid())
+  role      String   // PATIENT | RECEPTIONIST | DOCTOR | MANAGER
+  agent     String   // SHINA | MANAGER | RECEPTION | DOCTOR | SUMMARY | AUTO_REPLY | HANDOFF
+  ok        Boolean
+  aiUsed    Boolean
+  latencyMs Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

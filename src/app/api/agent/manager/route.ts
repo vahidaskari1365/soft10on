@@ -3,7 +3,10 @@ import { db } from '@/lib/db'
 import { runToolAgent, type AgentTool, type AgentStep } from '@/lib/agents'
 import { requireRole } from '@/lib/auth'
 import { jMonthKey, monthKeyStart, monthKeyEnd, formatJDate, formatTime, formatDayRelative, weekdayName, faDigits } from '@/lib/jalali'
-import { formatToman } from '@/lib/format'
+import { formatToman, formatTomanFull } from '@/lib/format'
+import { cashBalances, doctorCommissions, nextInvoiceNumber } from '@/lib/accounting'
+import { getClinicDNA } from '@/lib/clinic-dna'
+import { logAiCall } from '@/lib/ai'
 
 export const maxDuration = 60
 
@@ -17,7 +20,7 @@ function monthBounds() {
 async function branchStats() {
   const { start, end } = monthBounds()
   const branches = await db.branch.findMany({ include: { doctors: true } })
-  const out = []
+  const out: { branch: string; city: string; activeDoctors: number; appointmentsThisMonth: number; revenueThisMonth: number; revenueFa: string; noShowRate30d: number }[] = []
   for (const b of branches) {
     const [appts, doneThisMonth, last30] = await Promise.all([
       db.appointment.count({ where: { branchId: b.id, start: { gte: start, lt: end } } }),
@@ -175,6 +178,87 @@ const tools: AgentTool[] = [
     },
   },
   {
+    name: 'cash_status',
+    description: 'موجودی فعلی صندوق‌ها و حساب‌های بانکی + جمع دریافتی و پرداختی امروز',
+    argsHint: '{}',
+    run: async () => {
+      const accounts = await cashBalances()
+      const dayStart = new Date(Date.now() - (Date.now() % 86_400_000))
+      const [inToday, outToday] = await Promise.all([
+        db.payment.aggregate({ where: { date: { gte: dayStart }, direction: 'IN' }, _sum: { amount: true } }),
+        db.payment.aggregate({ where: { date: { gte: dayStart }, direction: 'OUT' }, _sum: { amount: true } }),
+      ])
+      return {
+        accounts: accounts.map((a) => ({ name: a.name, type: a.type === 'BANK' ? 'بانک' : 'صندوق', balanceFa: formatToman(a.balance) })),
+        totalBalanceFa: formatToman(accounts.reduce((s, a) => s + a.balance, 0)),
+        inTodayFa: formatToman(inToday._sum.amount ?? 0),
+        outTodayFa: formatToman(outToday._sum.amount ?? 0),
+      }
+    },
+  },
+  {
+    name: 'checks_due',
+    description: 'چک‌های در جریان با سررسید نزدیک (هفت روز آینده) و چک‌های برگشتی',
+    argsHint: '{}',
+    run: async () => {
+      const in7 = new Date(Date.now() + 7 * 86_400_000)
+      const checks = await db.check.findMany({
+        where: { status: { in: ['IN_HAND', 'DEPOSITED'] }, dueDate: { lte: in7 } },
+        orderBy: { dueDate: 'asc' },
+        take: 15,
+      })
+      return checks.map((c) => ({
+        direction: c.direction === 'RECEIVED' ? 'دریافتی' : 'صادره',
+        number: c.number,
+        bank: c.bank,
+        dueDate: formatJDate(c.dueDate),
+        amountFa: formatToman(c.amount),
+        status: c.status === 'DEPOSITED' ? 'خرج‌شده به بانک' : 'در جریان',
+      }))
+    },
+  },
+  {
+    name: 'overdue_invoices',
+    description: 'فاکتورهای تسویه‌نشده با بیش از دو هفته تأخیر + مجموع مانده',
+    argsHint: '{}',
+    run: async () => {
+      const twoWeeksAgo = new Date(Date.now() - 14 * 86_400_000)
+      const invoices = await db.invoice.findMany({
+        where: { status: { in: ['ISSUED', 'PARTIAL'] }, date: { lte: twoWeeksAgo } },
+        include: { patient: { select: { firstName: true, lastName: true } }, payments: { where: { refType: 'INVOICE' } } },
+        take: 15,
+        orderBy: { date: 'asc' },
+      })
+      const rows = invoices.map((i) => ({
+        number: i.number,
+        patient: i.patient ? `${i.patient.firstName} ${i.patient.lastName}` : 'بدون بیمار',
+        remainingFa: formatToman(i.total - i.payments.reduce((s, p) => s + p.amount, 0)),
+        date: formatJDate(i.date),
+      }))
+      const remaining = invoices.reduce((s, i) => s + i.total - i.payments.reduce((x, p) => x + p.amount, 0), 0)
+      return { count: faDigits(rows.length), totalRemainingFa: formatToman(remaining), rows }
+    },
+  },
+  {
+    name: 'waitlist_status',
+    description: 'وضعیت صف انتظار نوبت — چه کسانی منتظر ظرفیت خالی هستند',
+    argsHint: '{}',
+    run: async () => {
+      const items = await db.waitlist.findMany({
+        where: { status: { in: ['WAITING', 'OFFERED'] } },
+        include: { patient: { select: { firstName: true, lastName: true } }, doctor: { select: { name: true } } },
+        orderBy: { createdAt: 'asc' },
+        take: 10,
+      })
+      return items.map((w) => ({
+        patient: `${w.patient.firstName} ${w.patient.lastName}`,
+        doctor: w.doctor?.name ?? 'بدون ترجیح',
+        priority: w.priority === 'URGENT' ? 'فوری' : w.priority === 'LOW' ? 'کم' : 'معمولی',
+        waitingSince: formatDayRelative(w.createdAt),
+      }))
+    },
+  },
+  {
     name: 'create_task',
     description: 'ثبت کار جدید در کارتابل پذیرش (مثلاً پیگیری تماس)',
     argsHint: '{"title":"عنوان","priority":"LOW|MEDIUM|HIGH|URGENT","description":"توضیح"}',
@@ -206,6 +290,10 @@ const TOOL_TITLES: Record<string, string> = {
   low_stock: 'بررسی هشدار انبار',
   task_summary: 'خلاصه کارتابل',
   search_patient: 'جست‌وجوی بیمار',
+  cash_status: 'وضعیت صندوق و بانک',
+  checks_due: 'چک‌های سررسیدنزدیک',
+  overdue_invoices: 'فاکتورهای معوق',
+  waitlist_status: 'صف انتظار نوبت',
   create_task: 'ثبت کار در کارتابل',
 }
 
@@ -253,15 +341,18 @@ export async function POST(request: Request) {
     : []
   if (!message) return NextResponse.json({ error: 'پیام خالی است' }, { status: 400 })
 
+  const dna = await getClinicDNA()
+  const started = Date.now()
   const turn = await runToolAgent({
-    system: SYSTEM,
+    system: SYSTEM + dna.text,
     tools,
     history,
     userMessage: message,
     fallback,
     toolTitles: TOOL_TITLES,
-    maxSteps: 4,
+    maxSteps: 5,
   })
+  await logAiCall({ role: 'MANAGER', agent: 'MANAGER', ok: true, aiUsed: turn.aiUsed, latencyMs: Date.now() - started })
 
   return NextResponse.json({
     answer: turn.answer,

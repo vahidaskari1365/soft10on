@@ -2,10 +2,13 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { faDigits, formatJDate, weekdayName } from '@/lib/jalali'
 import {
   LayoutDashboard, CalendarDays, Inbox, Bot, Users, Wallet, Sparkles, LogOut,
   Building2, UserCog, Stethoscope, UserRound, BrainCircuit, Headset, ChevronLeft,
+  MessageSquare, FolderOpen, Hourglass, Settings, Globe, RefreshCw, ClipboardList,
 } from 'lucide-react'
 import { LoginScreen } from './login-screen'
 import { DashboardSection } from './dashboard-section'
@@ -18,6 +21,11 @@ import { StaffSection } from './manager/staff-section'
 import { AgentChatSection } from './agent/agent-chat-section'
 import { DoctorSection } from './doctor/doctor-section'
 import { PortalSection } from './patient/portal-section'
+import { MessagesSection } from './messages-section'
+import { RecordsSection } from './records-section'
+import { WaitlistSection } from './waitlist-section'
+import { SettingsSection } from './settings-section'
+import { RemindersBar } from './reminders-bar'
 import { ROLE_LABEL } from '@/lib/format'
 import type { SessionUser } from './types'
 
@@ -28,26 +36,37 @@ const NAV_ADMIN: NavItem[] = [
   { key: 'branches', label: 'مدیریت شعب', icon: Building2 },
   { key: 'staff', label: 'پرسنل و دسترسی‌ها', icon: UserCog },
   { key: 'appointments', label: 'نوبت‌ها و تقویم', icon: CalendarDays },
+  { key: 'waitlist', label: 'صف انتظار', icon: Hourglass },
   { key: 'tasks', label: 'کارتابل عملیات', icon: Inbox },
+  { key: 'messages', label: 'پیام بیماران', icon: MessageSquare },
   { key: 'patients', label: 'بیماران (CRM)', icon: Users },
-  { key: 'finance', label: 'مالی و انبار', icon: Wallet },
+  { key: 'records', label: 'پرونده هوشمند', icon: FolderOpen },
+  { key: 'finance', label: 'حسابداری و انبار', icon: Wallet },
   { key: 'agent', label: 'دستیار مدیریتی', icon: BrainCircuit },
+  { key: 'settings', label: 'تنظیمات سامانه', icon: Settings },
 ]
 
 const NAV_RECEPTION: NavItem[] = [
   { key: 'dashboard', label: 'امروز پذیرش', icon: LayoutDashboard },
   { key: 'appointments', label: 'نوبت‌ها و تقویم', icon: CalendarDays },
+  { key: 'waitlist', label: 'صف انتظار', icon: Hourglass },
   { key: 'tasks', label: 'کارتابل عملیات', icon: Inbox },
+  { key: 'messages', label: 'پیام بیماران', icon: MessageSquare },
   { key: 'patients', label: 'بیماران (CRM)', icon: Users },
+  { key: 'records', label: 'پرونده هوشمند', icon: FolderOpen },
   { key: 'agent', label: 'دستیار پذیرش', icon: Bot },
 ]
 
 const NAV_DOCTOR: NavItem[] = [
   { key: 'doctor', label: 'تابلوی من', icon: Stethoscope },
+  { key: 'agent', label: 'دستیار پزشک', icon: BrainCircuit },
+  { key: 'records', label: 'پرونده بیماران', icon: FolderOpen },
 ]
 
 const NAV_PATIENT: NavItem[] = [
   { key: 'portal', label: 'پرتال من', icon: UserRound },
+  { key: 'messages', label: 'پیام با کلینیک', icon: MessageSquare },
+  { key: 'records', label: 'پرونده من', icon: FolderOpen },
 ]
 
 const ROLE_HOME: Record<string, string> = {
@@ -64,14 +83,27 @@ function ShieldIcon(props: { className?: string }) {
 
 /** میان‌برهای داشبورد برای هر نقش (کلیک روی آیکن = پرش به همان بخش) */
 const QUICK_KEYS: Record<string, string[]> = {
-  ADMIN: ['appointments', 'tasks', 'patients', 'finance', 'branches', 'staff', 'agent'],
-  RECEPTIONIST: ['appointments', 'tasks', 'patients', 'agent'],
+  ADMIN: ['appointments', 'waitlist', 'tasks', 'messages', 'patients', 'records', 'finance', 'branches', 'staff', 'agent', 'settings'],
+  RECEPTIONIST: ['appointments', 'waitlist', 'tasks', 'messages', 'patients', 'records', 'agent'],
 }
 
 export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
   const [user, setUser] = useState<SessionUser | null>(initialUser)
   const [section, setSection] = useState<string>(user ? ROLE_HOME[user.role] ?? 'dashboard' : 'dashboard')
+  const [handoffText, setHandoffText] = useState<string | null>(null)
+  const [handoffBusy, setHandoffBusy] = useState(false)
   const today = new Date()
+
+  async function generateHandoff() {
+    setHandoffBusy(true)
+    try {
+      const res = await fetch('/api/handoff')
+      const d = await res.json()
+      setHandoffText((d.summary as string) ?? 'خلاصه‌ای ساخته نشد')
+    } catch {
+      setHandoffText('ساخت خلاصه شیفت ناموفق بود')
+    } finally { setHandoffBusy(false) }
+  }
 
   if (!user) {
     return (
@@ -186,6 +218,25 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
 
         {/* Content — هر بخش با انیمیشن نرم وارد می‌شود */}
         <main className="flex-1 px-4 md:px-6 py-5 pb-24 lg:pb-6">
+          {(user.role === 'ADMIN' || user.role === 'RECEPTIONIST') && section === 'dashboard' && (
+            <RemindersBar onNavigate={(s) => setSection(s)} />
+          )}
+          {(user.role === 'ADMIN' || user.role === 'RECEPTIONIST') && (
+            <div className="mb-5 flex justify-start">
+              <Dialog open={Boolean(handoffText) || handoffBusy} onOpenChange={(o) => { if (!o) setHandoffText(null) }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="rounded-xl text-xs" onClick={generateHandoff} disabled={handoffBusy}>
+                    {handoffBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                    تحویل شیفت
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader><DialogTitle>خلاصه تحویل شیفت</DialogTitle></DialogHeader>
+                  <div className="text-sm whitespace-pre-wrap leading-7 max-h-[50vh] overflow-y-auto">{handoffText ?? 'در حال جمع‌بندی…'}</div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
           <div key={section} className="fade-up">
             {section === 'dashboard' && (
               <DashboardSection onNavigate={(s) => setSection(s)} quickKeys={QUICK_KEYS[user.role] ?? []} />
@@ -224,6 +275,24 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
                 />)}
             {section === 'doctor' && <DoctorSection />}
             {section === 'portal' && <PortalSection userName={user.fullName} />}
+            {section === 'messages' && <MessagesSection isPatient={user.role === 'PATIENT'} />}
+            {section === 'waitlist' && <WaitlistSection />}
+            {section === 'records' && <RecordsSection isPatient={user.role === 'PATIENT'} patientName={user.patientName ?? undefined} />}
+            {section === 'settings' && user.role === 'ADMIN' && <SettingsSection />}
+            {section === 'agent' && user.role === 'DOCTOR' && (
+              <AgentChatSection
+                key="doctor-agent"
+                endpoint="/api/agent/doctor"
+                title="دستیار پزشک هوشمند"
+                subtitle="پرونده را باز کنید، خلاصه بگیرید، سند ثبت کنید یا دستور صوتی‌تان را به وظیفه بدهید — هشدار حساسیت و بارداری همیشه قبل از همه‌چیز اعلام می‌شود"
+                suggestions={[
+                  'برنامه امروز من چیست؟',
+                  'پرونده بیمار سامان قاسمی را باز کن و خلاصه بده',
+                  'یادداشت کن: کنترل بخیه هفته بعد برای بیمار ایمپلنت',
+                  'برای پذیرش وظیفه ثبت کن که آزمایش بیمار فردا پیگیری شود',
+                ]}
+              />
+            )}
           </div>
         </main>
 
@@ -233,6 +302,9 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
             <span>
               <span className="font-bold text-foreground/70" dir="ltr">10on</span>
               <span> — لبخند شما، سرمایه ماست · سامانه هوشمند کلینیک دندان‌پزشکی</span>
+              <a href="/clinic/SAADAT" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mr-3 text-sky-600 hover:underline">
+                <Globe className="h-3 w-3" /> صفحه عمومی رزرو نوبت
+              </a>
             </span>
             <span>{faDigits('1405')} © همه‌ی داده‌ها نمونه است</span>
           </div>

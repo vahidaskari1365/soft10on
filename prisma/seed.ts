@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { jMonthKey, monthKeyStart, monthKeyEnd } from '../src/lib/jalali'
+import { jMonthKey, monthKeyStart, monthKeyEnd, faDigits, utcDayStart } from '../src/lib/jalali'
 import { hashPassword } from '../src/lib/password'
 
 const db = new PrismaClient()
@@ -11,7 +11,7 @@ function rnd() {
   return (seedState - 1) / 2147483646
 }
 function pick<T>(arr: T[]): T {
-  return arr[Math.floor(rnd() * arr.length)]
+  return arr[Math.floor(rnd() * arr.length)] as T
 }
 function pickWeighted<T>(arr: T[], weight: number): T {
   // weight<1 → bias to earlier items
@@ -33,6 +33,19 @@ async function main() {
   console.log(' seeding…')
 
   // wipe (ترتیب مهم: ابتدا جداول با رابطه)
+  await db.aiCall.deleteMany()
+  await db.publicBooking.deleteMany()
+  await db.knowledgeBase.deleteMany()
+  await db.waitlist.deleteMany()
+  await db.message.deleteMany()
+  await db.medicalRecord.deleteMany()
+  await db.payroll.deleteMany()
+  await db.check.deleteMany()
+  await db.payment.deleteMany()
+  await db.invoiceItem.deleteMany()
+  await db.invoice.deleteMany()
+  await db.cashAccount.deleteMany()
+  await db.supplier.deleteMany()
   await db.user.deleteMany()
   await db.expense.deleteMany()
   await db.productSale.deleteMany()
@@ -139,7 +152,7 @@ async function main() {
     ['مهدی', 'جلالی', '09123334488', 1362, false],
     ['آیدا', 'سلطانی', '09191114477', 1377, false],
   ]
-  const patients = []
+  const patients: { id: string; firstName: string; lastName: string; phone: string; [k: string]: unknown }[] = []
   for (const [firstName, lastName, phone, birthYear, incompleteTreatment] of patientData) {
     const p = await db.patient.create({
       data: { firstName, lastName, phone, birthYear, incompleteTreatment, nationalId: String(1000000000 + Math.floor(rnd() * 8999999999)) },
@@ -290,7 +303,7 @@ async function main() {
     ['براکیت متالی ارتودنسی (ست)', 'ارتودنسی', 4_500_000, 7_800_000, 5, 3, 'ست', 'پخش رازی دنت'],
     ['سرنگ آبیاری (بسته ۲۰)', 'مصرفی عمومی', 320_000, 600_000, 30, 12, 'بسته', 'سینا مدیکال‌تک'],
   ]
-  const products = []
+  const products: { id: string; name: string; category: string; unit: string; purchasePrice: number; salePrice: number; stockQty: number; minStock: number; supplier: string | null; branchId: string | null }[] = []
   // توزیع بین شعب: ۰–۴ مرکزی، ۵–۷ ولیعصر، ۸–۹ کرج
   const prodBranch = [brMain, brMain, brMain, brMain, brMain, brValiasr, brValiasr, brValiasr, brKaraj, brKaraj]
   for (let i = 0; i < prodData.length; i++) {
@@ -376,6 +389,317 @@ async function main() {
         if (part <= 0) continue
         await db.expense.create({ data: { date: at(dayBase, 12), category, amount: part, description: `${description} — ${branchLabel}`, branchId } })
       }
+    }
+  }
+
+  // ---------- حسابداری کامل: تامین‌کنندگان، صندوق، فاکتور، پرداخت، چک، حقوق ----------
+
+  // تامین‌کنندگان
+  await db.supplier.create({ data: { name: 'آریا دنت تجارت', phone: '۰۲۱-۶۶۱۲۳۴۵۶', note: 'مواد مصرفی عمومی' } })
+  await db.supplier.create({ data: { name: 'سینا مدیکال‌تک', phone: '۰۲۱-۷۷۴۴۵۵۶۶', note: 'بی‌حسی و تجهیزات' } })
+  await db.supplier.create({ data: { name: 'پخش رازی دنت', phone: '۰۳۱-۳۳۳۴۴۵۵۵', note: 'ارتودنسی و ابزار' } })
+
+  // صندوق‌ها و حساب‌های بانکی
+  const cashMain = await db.cashAccount.create({ data: { branchId: brMain.id, name: 'صندوق شعبه مرکزی', type: 'CASH', openingBalance: 12_000_000 } })
+  const cashValiasr = await db.cashAccount.create({ data: { branchId: brValiasr.id, name: 'صندوق شعبه ولیعصر', type: 'CASH', openingBalance: 8_000_000 } })
+  const bankMellat = await db.cashAccount.create({ data: { branchId: null, name: 'بانک ملت — جاری کلینیک', type: 'BANK', bankName: 'ملت', accountNo: '۶۲۱۹-۸۶۱۰-۴۵۲۳', openingBalance: 180_000_000 } })
+  await db.cashAccount.create({ data: { branchId: brKaraj.id, name: 'صندوق شعبه کرج', type: 'CASH', openingBalance: 6_000_000 } })
+
+  // فاکتورها + پرداخت‌ها (سه ماه اخیر)
+  const INV_STATUS_MIX = ['PAID', 'PAID', 'PAID', 'PAID', 'PARTIAL', 'ISSUED']
+  let invNumber = 14001
+  for (let m = 2; m >= 0; m--) {
+    const count = 9 - m * 2
+    for (let i = 0; i < count; i++) {
+      const patient = pick(patients)
+      const svc = pick(services)
+      const svc2 = pick(services)
+      const branch = doctors[i % doctors.length]
+      const day = addDays(now, -m * 30 - Math.floor(rnd() * 24))
+      if (day > now) continue
+      const l1 = { qty: 1, unitPrice: svc.price }
+      const addSecond = rnd() < 0.35
+      const subtotal = svc.price + (addSecond ? svc2.price : 0)
+      const discount = rnd() < 0.2 ? Math.round(subtotal * 0.1 / 1000) * 1000 : 0
+      const total = subtotal - discount
+      const status = m === 0 ? pick(INV_STATUS_MIX) : rnd() < 0.85 ? 'PAID' : 'PARTIAL'
+      const invoice = await db.invoice.create({
+        data: {
+          branchId: branch.branchId,
+          number: invNumber++,
+          patientId: patient.id,
+          date: day,
+          status: 'ISSUED',
+          subtotal,
+          discount,
+          total,
+          items: {
+            create: [
+              { kind: 'SERVICE', refId: svc.id, title: svc.name, ...l1, total: svc.price },
+              ...(addSecond ? [{ kind: 'SERVICE', refId: svc2.id, title: svc2.name, qty: 1, unitPrice: svc2.price, total: svc2.price }] : []),
+            ],
+          },
+        },
+      })
+      if (status === 'PAID') {
+        await db.payment.create({
+          data: {
+            branchId: invoice.branchId,
+            date: day,
+            direction: 'IN',
+            method: pick(['CASH', 'POS', 'POS', 'CARD', 'ONLINE']),
+            amount: total,
+            cashAccountId: rnd() < 0.4 ? bankMellat.id : rnd() < 0.6 ? cashMain.id : cashValiasr.id,
+            patientId: patient.id,
+            invoiceId: invoice.id,
+            description: `تسویه فاکتور ${faDigits(invoice.number)}`,
+            refType: 'INVOICE',
+            refId: invoice.id,
+          },
+        })
+        await db.invoice.update({ where: { id: invoice.id }, data: { status: 'PAID' } })
+      } else if (status === 'PARTIAL') {
+        const half = Math.round(total / 2 / 10000) * 10000
+        await db.payment.create({
+          data: {
+            branchId: invoice.branchId,
+            date: day,
+            direction: 'IN',
+            method: pick(['CASH', 'POS']),
+            amount: half,
+            cashAccountId: cashMain.id,
+            patientId: patient.id,
+            invoiceId: invoice.id,
+            description: `پیش‌پرداخت فاکتور ${faDigits(invoice.number)}`,
+            refType: 'INVOICE',
+            refId: invoice.id,
+          },
+        })
+        await db.invoice.update({ where: { id: invoice.id }, data: { status: 'PARTIAL' } })
+      }
+    }
+  }
+  // یک فاکتور معوق قدیمی (برای هشدار)
+  const oldPatient = patients[3]
+  const oldSvc = services[0]
+  await db.invoice.create({
+    data: {
+      branchId: brMain.id,
+      number: invNumber++,
+      patientId: oldPatient.id,
+      date: addDays(now, -21),
+      status: 'ISSUED',
+      subtotal: oldSvc.price,
+      discount: 0,
+      total: oldSvc.price,
+      items: { create: [{ kind: 'SERVICE', refId: oldSvc.id, title: oldSvc.name, qty: 1, unitPrice: oldSvc.price, total: oldSvc.price }] },
+    },
+  })
+
+  // چک‌ها
+  const checkRows = [
+    { direction: 'RECEIVED', number: '۱۲۳۴۵۶', bank: 'ملی', dueIn: 4, amount: 45_000_000, patientIdx: 2, status: 'IN_HAND', cash: cashMain.id },
+    { direction: 'RECEIVED', number: '۷۷۲۳۱۰', bank: 'صادرات', dueIn: 12, amount: 30_000_000, patientIdx: 5, status: 'IN_HAND', cash: bankMellat.id },
+    { direction: 'RECEIVED', number: '۵۵۱۲۳۴', bank: 'تخانه', dueIn: -3, amount: 18_500_000, patientIdx: 8, status: 'DEPOSITED', cash: bankMellat.id },
+    { direction: 'ISSUED', number: '۹۸۰۰۴۲', bank: 'ملت', dueIn: 6, amount: 62_000_000, supplierName: 'آریا دنت تجارت', status: 'IN_HAND', cash: bankMellat.id },
+    { direction: 'ISSUED', number: '۹۸۰۰۴۳', bank: 'ملت', dueIn: 20, amount: 25_000_000, supplierName: 'سینا مدیکال‌تک', status: 'IN_HAND', cash: bankMellat.id },
+    { direction: 'RECEIVED', number: '۳۳۴۴۵۵', bank: 'سپه', dueIn: -40, amount: 22_000_000, patientIdx: 1, status: 'CLEARED', cash: bankMellat.id },
+    { direction: 'RECEIVED', number: '۹۹۱۲۳۳', bank: 'پارسیان', dueIn: -15, amount: 12_000_000, patientIdx: 6, status: 'BOUNCED', cash: null },
+    { direction: 'ISSUED', number: '۹۸۰۰۴۱', bank: 'ملت', dueIn: -25, amount: 30_000_000, supplierName: 'پخش رازی دنت', status: 'CLEARED', cash: bankMellat.id },
+  ]
+  for (const c of checkRows) {
+    await db.check.create({
+      data: {
+        branchId: c.direction === 'RECEIVED' ? brMain.id : null,
+        direction: c.direction,
+        number: c.number,
+        bank: c.bank,
+        dueDate: addDays(now, c.dueIn),
+        amount: c.amount,
+        status: c.status,
+        patientId: 'patientIdx' in c && c.patientIdx !== undefined ? patients[c.patientIdx].id : null,
+        supplierName: c.supplierName ?? null,
+        cashAccountId: c.cash,
+      },
+    })
+  }
+
+  // حقوق و کارانه — ماه قبل (پرداخت‌شده) و ماه جاری (در جریان)
+  const prevKey = jMonthKey(addDays(now, -31))
+  const curKeyPay = jMonthKey(now)
+  const payPlan = [
+    { month: prevKey, staffName: 'سمیرا احمدی', role: 'RECEPTIONIST', base: 24_000_000, status: 'PAID' },
+    { month: prevKey, staffName: 'نگار مهدوی', role: 'RECEPTIONIST', base: 24_000_000, status: 'PAID' },
+    { month: prevKey, staffName: 'رضا آریایی', role: 'ADMIN', base: 38_000_000, status: 'PAID' },
+    { month: prevKey, staffName: 'دکتر سارا احمدی', role: 'DOCTOR', base: 0, commission: 18_400_000, status: 'PAID' },
+    { month: prevKey, staffName: 'دکتر امیر رضایی', role: 'DOCTOR', base: 0, commission: 21_600_000, status: 'PAID' },
+    { month: curKeyPay, staffName: 'سمیرا احمدی', role: 'RECEPTIONIST', base: 24_000_000, status: 'PENDING' },
+    { month: curKeyPay, staffName: 'رضا آریایی', role: 'ADMIN', base: 38_000_000, status: 'PENDING' },
+    { month: curKeyPay, staffName: 'دکتر سارا احمدی', role: 'DOCTOR', base: 0, commission: 12_800_000, status: 'PENDING' },
+  ]
+  for (const p of payPlan) {
+    const total = Math.round(p.base + ('commission' in p ? p.commission! : 0))
+    const pr = await db.payroll.create({
+      data: {
+        month: p.month,
+        staffName: p.staffName,
+        role: p.role,
+        baseSalary: p.base,
+        commission: 'commission' in p ? p.commission : 0,
+        total,
+        status: p.status,
+        paidAt: p.status === 'PAID' ? addDays(now, -20) : null,
+        method: p.status === 'PAID' ? 'TRANSFER' : null,
+      },
+    })
+    if (p.status === 'PAID') {
+      await db.payment.create({
+        data: {
+          date: addDays(now, -20),
+          direction: 'OUT',
+          method: 'TRANSFER',
+          amount: total,
+          cashAccountId: bankMellat.id,
+          description: `حقوق ${p.staffName} — ${p.month}`,
+          refType: 'PAYROLL',
+          refId: pr.id,
+        },
+      })
+    }
+  }
+
+  // ---------- پرونده هوشمند ----------
+  const recordPlans: [number, [string, string, string, string][]][] = [
+    [0, [
+      ['VISIT', 'ویزیت ترمیمی دندان ۱۲', 'ترمیم کامپوزیت سه‌سطحی روی دندان ۱۲ انجام شد؛ اکلوژی تنظیم شد. توصیه به سیلانت پیشگیری.', 'دکتر سارا احمدی'],
+      ['TEST', 'رادیوگرافی پری‌اپیکال', 'پری‌اپیکال منطقه ۱۲: ساب‌کوندرال اسکلروز خفیف. فوریت درمانی ندارد.', 'دکتر سارا احمدی'],
+      ['NOTE', 'یادآوری فلوراید‌تراپی', 'شش‌ماهه فلوراید‌تراپی انجام شود؛ بیمار نوجوان است و همکاری خوبی دارد.', 'دکتر نگین موسوی'],
+    ]],
+    [9, [
+      ['VISIT', 'جراحی ایمپلنت فاز ۱', 'ایمپلنت نئودینت در ناحیه ۴۶ گذاشته شد؛ اوستئوتومی کامل. بخیه‌ها در وضعیت خوب.', 'دکتر امیر رضایی'],
+      ['VISIT', 'کنترل هفته دوم ایمپلنت', 'بافت لثه سالم؛ ورم ندارد. یادآوری شستشو با دهان‌شویه کلرهگزیدین تا یک هفته.', 'دکتر امیر رضایی'],
+      ['NOTE', 'حساسیت اضافه شد', 'بیمار سابقه حساسیت به پنی‌سیلین اعلام کرد — در شناسنامه ثبت شد.', 'دکتر نگین موسوی'],
+    ]],
+    [4, [
+      ['IMAGING', 'OPG کامل', 'OPG: هیچ کیست یا توموری دیده نمی‌شود؛ دندان عقل ۳۸ در حال رویش.', 'دکتر امیر رضایی'],
+      ['VISIT', 'معاینه ارتودنسی اولیه', 'کراودینگ خفیف فک پایین؛ طرح درمان ارتودنسی متحرک پیشنهاد شد.', 'دکتر نگین موسوی'],
+    ]],
+    [2, [
+      ['VISIT', 'ویزیت زیبایی ونیر', 'ونیر سرامیک برای دندان‌های ۸-۹ قرار گرفت؛ بیمار بسیار راضی بود.', 'دکتر سارا احمدی'],
+    ]],
+  ]
+  for (const [pIdx, recs] of recordPlans) {
+    for (const [type, title, content, doctorName] of recs) {
+      const doc = doctors.find((d) => d.name === doctorName)
+      await db.medicalRecord.create({
+        data: {
+          branchId: doc?.branchId ?? brMain.id,
+          patientId: patients[pIdx].id,
+          doctorId: doc?.id ?? null,
+          date: addDays(now, -Math.floor(rnd() * 60)),
+          type,
+          title,
+          content,
+          source: type === 'TEST' ? 'PHOTO' : 'MANUAL',
+        },
+      })
+    }
+  }
+  // هشدارهای شناسنامه
+  await db.patient.update({ where: { id: patients[9].id }, data: { allergies: 'پنی‌سیلین', chronicNote: 'فشار خون خفیف' } })
+  await db.patient.update({ where: { id: patients[4].id }, data: { allergies: 'آسپرین' } })
+  await db.patient.update({ where: { id: patients[7].id }, data: { isPregnant: true } })
+
+  // ---------- پیام‌ها (منشی–بیمار) ----------
+  const msgPlans: [number, [string, string, boolean][]][] = [
+    [9, [
+      ['OUT', 'سلام اقای قاسمی، نوبت کنترل ایمپلنت شما برای هفته آینده ثبت شد. روز و ساعت دقیق پیامک می‌شود. 🌸', false],
+      ['IN', 'سلام، ممنون. می‌شه ساعتش رو بعدازظهر بذارید؟ قبل از ساعت ۱۶ سر کارم.', true],
+      ['OUT', 'حتماً بررسی می‌کنیم و ظرفیت بعدازظهر را برای شما رزرو می‌کنیم.', false],
+      ['IN', 'سلام، برای ایمپلنت بعدی چی زمانی باید بیام؟', true],
+    ]],
+    [0, [
+      ['IN', 'سلام، نوبت جرم‌گیری فردا ساعت چنده؟', true],
+      ['OUT', 'سلام، فردا ساعت ۱۰:۳۰ با دکتر موسوی. منتظرتون هستیم 🌸', false],
+    ]],
+  ]
+  for (const [pIdx, msgs] of msgPlans) {
+    for (const [direction, body, unread] of msgs) {
+      await db.message.create({
+        data: {
+          branchId: brMain.id,
+          patientId: patients[pIdx].id,
+          direction,
+          channel: 'CHAT',
+          body,
+          aiGenerated: false,
+          readAt: unread && direction === 'IN' ? null : new Date(),
+          createdAt: addDays(now, -Math.floor(rnd() * 5)),
+        },
+      })
+    }
+  }
+
+  // ---------- صف انتظار ----------
+  await db.waitlist.create({ data: { branchId: brMain.id, patientId: patients[6].id, doctorId: drSara.id, note: 'درخواست بعدازظهر‌های پنجشنبه', priority: 'NORMAL' } })
+  await db.waitlist.create({ data: { branchId: brValiasr.id, patientId: patients[3].id, note: 'هر ظرفیت خالی این هفته', priority: 'URGENT' } })
+  await db.waitlist.create({ data: { branchId: brMain.id, patientId: patients[1].id, doctorId: drNegin.id, note: 'فقط قبل از ساعت ۱۱ صبح', priority: 'LOW' } })
+
+  // ---------- پایگاه دانش ----------
+  const faqs = [
+    ['ساعات کاری کلینیک چطوره؟', 'شنبه تا چهارشنبه ۹ تا ۱۹، پنجشنبه ۹ تا ۱۳ و جمعه‌ها تعطیل هستیم. شعبه ولیعصر ۱۰ تا ۲۰ باز است.', 'HOURS'],
+    ['آدرس و شماره تلفن؟', 'شعبه مرکزی: سعادت‌آباد، بلوار دریا، پلاک ۴۲ — تلفن ۰۲۱-۲۲۳۳۴۴۵۵. شعبه ولیعصر: ونک، خیابان ولیعصر، برج آرمان — ۰۲۱-۸۸۹۹۷۷۶۶.', 'CONTACT'],
+    ['هزینه ویزیت چقدره؟', 'هزینه معاینه و مشاوره ۳۵۰ هزار تومان است و در صورت شروع درمان همان روز، از فاکتور درمان کسر می‌شود.', 'PRICING'],
+    ['اورژانس دارم چیکار کنم؟', 'برای درد شدید، خونریزی یا تورم شدید همین الان با پذیرش تماس بگیرید؛ ظرفیت اورژانسی همان روز داریم.', 'EMERGENCY'],
+    ['با تأمین سلامت نوبت میدید؟', 'بله، خدمات ترمیمی و پیشگیری با پوشش تأمین سلامت انجام می‌شود؛ هنگام پذیرش کارت بیمه را همراه داشته باشید.', 'INSURANCE'],
+    ['فرصت لغو نوبت چقدره؟', 'تا ۳ ساعت قبل از نوبت می‌توانید بدون جریمه لغو یا جابه‌جا کنید؛ کافی است پیام بدهید یا تماس بگیرید.', 'APPOINTMENT'],
+  ]
+  for (const [q, a, cat] of faqs) {
+    await db.knowledgeBase.create({ data: { question: q, answer: a, category: cat } })
+  }
+
+  // ---------- درخواست‌های رزرو صفحه عمومی ----------
+  const pbPlans: [string, string, number, number, string][] = [
+    ['مینا کریمی', '۰۹۱۲۷۷۷۸۸۹۹', 1, 0, 'ترجیحاً عصر'],
+    ['حسین نجفی', '۰۹۳۵۱۱۱۲۲۳۳', 3, 2, 'درد دارم، همین امروز'],
+    ['آیدا صادقی', '۰۹۳۹۴۴۴۵۵۶۶', 0, 1, ''],
+  ]
+  for (const [name, phone, svcIdx, brIdx, note] of pbPlans) {
+    await db.publicBooking.create({
+      data: {
+        branchId: [brMain.id, brValiasr.id, brKaraj.id][brIdx],
+        name,
+        phone,
+        serviceId: services[svcIdx].id,
+        note: note || null,
+        createdAt: addDays(now, -Math.floor(rnd() * 3)),
+      },
+    })
+  }
+
+  // ---------- آمار نمونه هوش مصنوعی (۱۴ روز اخیر) ----------
+  const agentPlans: [string, string, number][] = [
+    ['PATIENT', 'SHINA', 0.9],
+    ['RECEPTIONIST', 'RECEPTION', 0.85],
+    ['MANAGER', 'MANAGER', 0.8],
+    ['PATIENT', 'AUTO_REPLY', 0.95],
+    ['DOCTOR', 'SUMMARY', 0.7],
+  ]
+  for (let d = 13; d >= 0; d--) {
+    const callsPerDay = 3 + Math.floor(rnd() * 6)
+    for (let i = 0; i < callsPerDay; i++) {
+      const [role, agent, aiShare] = pick(agentPlans)
+      const aiUsed = rnd() < aiShare
+      await db.aiCall.create({
+        data: {
+          role,
+          agent,
+          ok: true,
+          aiUsed,
+          latencyMs: aiUsed ? 900 + Math.floor(rnd() * 2600) : 40 + Math.floor(rnd() * 120),
+          createdAt: new Date(utcDayStart(now).getTime() - d * 86_400_000 + i * 3 * 3600_000 + Math.floor(rnd() * 2 * 3600_000)),
+        },
+      })
     }
   }
 

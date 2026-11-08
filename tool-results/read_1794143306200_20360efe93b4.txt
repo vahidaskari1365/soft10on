@@ -1,0 +1,599 @@
+     1→'use client'
+     2→
+     3→import { useCallback, useEffect, useState } from 'react'
+     4→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+     8→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+     9→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    10→import { Label } from '@/components/ui/label'
+    11→import { StatCard, SectionHeader, Pill, LoadingBlock, EmptyState } from './bits'
+    12→import type { Expense, MonthRow, Product, ProductSale, Purchase } from './types'
+    13→import { EXPENSE_CATEGORY_LABEL, formatToman, millionsShort } from '@/lib/format'
+    14→import { formatJDate, keyToLabel, lastNMonthKeys, shiftJMonth, faDigits, jMonthKey } from '@/lib/jalali'
+    15→import {
+    16→  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell,
+    17→} from 'recharts'
+    18→import { Plus, Package, Wallet, TrendingUp, AlertTriangle } from 'lucide-react'
+    19→import { useToast } from '@/hooks/use-toast'
+    20→
+    21→const PIE_COLORS = ['#0284C7', '#B08D57', '#0D9488', '#EA580C', '#71757A', '#075985', '#DC2626']
+    22→
+    23→export function FinanceSection() {
+    24→  return (
+    25→    <div className="space-y-4">
+    26→      <SectionHeader title="مالی و انبار" subtitle="حسابداری سبک با تقویم شمسی — درآمد، هزینه، سود خالص و موجودی کالا" />
+    27→      <Tabs defaultValue="report" dir="rtl">
+    28→        <TabsList className="rounded-xl bg-muted">
+    29→          <TabsTrigger value="report" className="rounded-lg text-xs md:text-sm">گزارش ماهانه</TabsTrigger>
+    30→          <TabsTrigger value="inventory" className="rounded-lg text-xs md:text-sm">انبار</TabsTrigger>
+    31→          <TabsTrigger value="expenses" className="rounded-lg text-xs md:text-sm">هزینه‌ها</TabsTrigger>
+    32→        </TabsList>
+    33→        <TabsContent value="report" className="mt-4"><ReportTab /></TabsContent>
+    34→        <TabsContent value="inventory" className="mt-4"><InventoryTab /></TabsContent>
+    35→        <TabsContent value="expenses" className="mt-4"><ExpensesTab /></TabsContent>
+    36→      </Tabs>
+    37→    </div>
+    38→  )
+    39→}
+    40→
+    41→/* ---------------- گزارش ماهانه ---------------- */
+    42→
+    43→interface FinanceData {
+    44→  monthKey: string
+    45→  pnl: {
+    46→    revenueServices: number
+    47→    revenueProducts: number
+    48→    revenue: number
+    49→    cogs: number
+    50→    commission: number
+    51→    operationalExpenses: number
+    52→    totalExpenses: number
+    53→    netProfit: number
+    54→    margin: number
+    55→  }
+    56→  expenseRows: { category: string; label: string; amount: number }[]
+    57→  topServices: { name: string; value: number; count: number }[]
+    58→  doctors: { name: string; revenue: number; commission: number }[]
+    59→  series: MonthRow[]
+    60→  appointmentCount: number
+    61→}
+    62→
+    63→function ReportTab() {
+    64→  const [month, setMonth] = useState<string>(jMonthKey(new Date()))
+    65→  const [branch, setBranch] = useState<string>('all')
+    66→  const [branchList, setBranchList] = useState<{ id: string; name: string }[]>([])
+    67→  const [data, setData] = useState<FinanceData | null>(null)
+    68→
+    69→  useEffect(() => {
+    70→    fetch('/api/branches').then((r) => r.json()).then((d) => setBranchList(d.branches ?? [])).catch(() => {})
+    71→  }, [])
+    72→
+    73→  useEffect(() => {
+    74→    setData(null)
+    75→    const b = branch === 'all' ? '' : `&branch=${branch}`
+    76→    fetch(`/api/finance?month=${month}${b}`).then((r) => r.json()).then(setData).catch(() => {})
+    77→  }, [month, branch])
+    78→
+    79→  const months = lastNMonthKeys(12).reverse()
+    80→
+    81→  if (!data) return <LoadingBlock rows={5} />
+    82→
+    83→  const { pnl } = data
+    84→  const pnlRows: { label: string; value: number; bold?: boolean; negative?: boolean; indent?: boolean }[] = [
+    85→    { label: 'درآمد خدمات درمانی', value: pnl.revenueServices, indent: true },
+    86→    { label: 'درآمد فروش کالا', value: pnl.revenueProducts, indent: true },
+    87→    { label: 'جمع درآمد ماه', value: pnl.revenue, bold: true },
+    88→    { label: 'بهای کالای فروخته‌شده', value: -pnl.cogs, indent: true },
+    89→    { label: 'کارانه پزشکان', value: -pnl.commission, indent: true },
+    90→    { label: 'هزینه‌های عملیاتی (اجاره، حقوق، …)', value: -pnl.operationalExpenses, indent: true },
+    91→    { label: 'جمع هزینه‌های ماه', value: -pnl.totalExpenses, bold: true },
+    92→    { label: 'سود خالص ماه', value: pnl.netProfit, bold: true, negative: pnl.netProfit < 0 },
+    93→  ]
+    94→
+    95→  return (
+    96→    <div className="space-y-4">
+    97→      <div className="flex flex-wrap items-center gap-2">
+    98→        <span className="text-xs text-muted-foreground">ماه مورد نظر:</span>
+    99→        <Select value={month} onValueChange={setMonth}>
+   100→          <SelectTrigger className="w-44 rounded-xl"><SelectValue /></SelectTrigger>
+   101→          <SelectContent>
+   102→            {months.map((m) => (
+   103→              <SelectItem key={m} value={m}>{keyToLabel(m)}</SelectItem>
+   104→            ))}
+   105→          </SelectContent>
+   106→        </Select>
+   107→        <span className="text-xs text-muted-foreground">شعبه:</span>
+   108→        <Select value={branch} onValueChange={setBranch}>
+   109→          <SelectTrigger className="w-52 rounded-xl"><SelectValue /></SelectTrigger>
+   110→          <SelectContent>
+   111→            <SelectItem value="all">همه‌ی شعب</SelectItem>
+   112→            {branchList.map((b) => (
+   113→              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+   114→            ))}
+   115→          </SelectContent>
+   116→        </Select>
+   117→        <Pill label={`${faDigits(data.appointmentCount)} ویزیت انجام‌شده در این ماه`} color="bg-secondary text-secondary-foreground border-transparent" />
+   118→      </div>
+   119→
+   120→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+   121→        <StatCard title="درآمد ماه" value={formatToman(pnl.revenue)} tone="purple" icon={<Wallet className="h-5 w-5" />} />
+   122→        <StatCard title="جمع هزینه‌ها" value={formatToman(pnl.totalExpenses)} tone="gold" icon={<TrendingUp className="h-5 w-5" />} />
+   123→        <StatCard
+   124→          title="سود خالص ماه"
+   125→          value={formatToman(pnl.netProfit)}
+   126→          tone={pnl.netProfit >= 0 ? 'green' : 'red'}
+   127→          icon={<TrendingUp className="h-5 w-5" />}
+   128→        />
+   129→        <StatCard title="حاشیه سود" value={`${faDigits(pnl.margin.toFixed(0))}٪`} hint="سود خالص ÷ درآمد" />
+   130→      </div>
+   131→
+   132→      <div className="grid lg:grid-cols-3 gap-4">
+   133→        <Card className="rounded-2xl lg:col-span-2">
+   134→          <CardHeader className="pb-2">
+   135→            <CardTitle className="text-base">روند ۱۲ ماهه (تومان)</CardTitle>
+   136→          </CardHeader>
+   137→          <CardContent>
+   138→            <div dir="ltr" className="h-[290px]">
+   139→              <ResponsiveContainer width="100%" height="100%">
+   140→                <ComposedChart data={data.series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+   141→                  <CartesianGrid strokeDasharray="3 3" stroke="#ECECF0" />
+   142→                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={0} angle={-35} textAnchor="end" height={50} />
+   143→                  <YAxis tickFormatter={millionsShort} tick={{ fontSize: 11 }} width={44} />
+   144→                  <Tooltip
+   145→                    formatter={(v: number, name: string) => [formatToman(v), name]}
+   146→                    contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #E6E8EC', direction: 'rtl' }}
+   147→                  />
+   148→                  <Legend wrapperStyle={{ fontSize: 12 }} />
+   149→                  <Bar dataKey="revenue" name="درآمد" fill="#0284C7" radius={[6, 6, 0, 0]} maxBarSize={24} />
+   150→                  <Bar dataKey="totalExpenses" name="هزینه‌ها" fill="#B08D57" radius={[6, 6, 0, 0]} maxBarSize={24} />
+   151→                  <Line type="monotone" dataKey="netProfit" name="سود خالص" stroke="#0D9488" strokeWidth={2.5} dot={{ r: 3 }} />
+   152→                </ComposedChart>
+   153→              </ResponsiveContainer>
+   154→            </div>
+   155→          </CardContent>
+   156→        </Card>
+   157→
+   158→        <Card className="rounded-2xl">
+   159→          <CardHeader className="pb-2">
+   160→            <CardTitle className="text-base">ترکیب درآمد {keyToLabel(data.monthKey)}</CardTitle>
+   161→          </CardHeader>
+   162→          <CardContent>
+   163→            <TopServicesMini services={data.topServices} />
+   164→          </CardContent>
+   165→        </Card>
+   166→      </div>
+   167→
+   168→      <div className="grid lg:grid-cols-3 gap-4">
+   169→        <Card className="rounded-2xl lg:col-span-2">
+   170→          <CardHeader className="pb-2">
+   171→            <CardTitle className="text-base">صورت سود و زیان ساده — {keyToLabel(data.monthKey)}</CardTitle>
+   172→          </CardHeader>
+   173→          <CardContent>
+   174→            <div className="divide-y">
+   175→              {pnlRows.map((r) => (
+   176→                <div key={r.label} className={`flex items-center justify-between py-2.5 ${r.bold ? 'font-bold' : ''}`}>
+   177→                  <span className={`text-sm ${r.indent ? 'text-muted-foreground pr-4' : ''} ${r.label.includes('سود خالص') ? 'text-emerald-700' : ''}`}>
+   178→                    {r.label}
+   179→                  </span>
+   180→                  <span className={`text-sm tabular-nums ${r.value < 0 ? 'text-rose-600' : r.label.includes('سود خالص') ? 'text-emerald-700' : ''}`}>
+   181→                    {formatToman(r.value)}
+   182→                  </span>
+   183→                </div>
+   184→              ))}
+   185→            </div>
+   186→          </CardContent>
+   187→        </Card>
+   188→
+   189→        <div className="space-y-4">
+   190→          <Card className="rounded-2xl">
+   191→            <CardHeader className="pb-2">
+   192→              <CardTitle className="text-base">تفکیک هزینه‌ها</CardTitle>
+   193→            </CardHeader>
+   194→            <CardContent className="space-y-2">
+   195→              {data.expenseRows.slice(0, 6).map((e) => (
+   196→                <div key={e.category} className="flex items-center justify-between text-xs">
+   197→                  <span className="text-muted-foreground">{e.label}</span>
+   198→                  <span className="font-semibold">{formatToman(e.amount)}</span>
+   199→                </div>
+   200→              ))}
+   201→            </CardContent>
+   202→          </Card>
+   203→          <Card className="rounded-2xl">
+   204→            <CardHeader className="pb-2">
+   205→              <CardTitle className="text-base">درآمد و کارانه پزشکان</CardTitle>
+   206→            </CardHeader>
+   207→            <CardContent className="space-y-3">
+   208→              {data.doctors.map((d) => (
+   209→                <div key={d.name}>
+   210→                  <div className="flex items-center justify-between text-xs mb-1">
+   211→                    <span className="font-medium">{d.name}</span>
+   212→                    <span className="text-muted-foreground">کارانه: {formatToman(d.commission)}</span>
+   213→                  </div>
+   214→                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+   215→                    <div
+   216→                      className="h-full rounded-full bg-[#0284C7]"
+   217→                      style={{ width: `${Math.min(100, (d.revenue / Math.max(...data.doctors.map((x) => x.revenue))) * 100)}%` }}
+   218→                    />
+   219→                  </div>
+   220→                </div>
+   221→              ))}
+   222→            </CardContent>
+   223→          </Card>
+   224→        </div>
+   225→      </div>
+   226→    </div>
+   227→  )
+   228→}
+   229→
+   230→function TopServicesMini({ services }: { services: { name: string; value: number; count: number }[] }) {
+   231→  return (
+   232→    <div dir="ltr" className="h-[190px]">
+   233→      <ResponsiveContainer width="100%" height="100%">
+   234→        <PieChart>
+   235→          <Pie data={services} dataKey="value" nameKey="name" innerRadius={45} outerRadius={75} paddingAngle={3}>
+   236→            {services.map((_, i) => (
+   237→              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+   238→            ))}
+   239→          </Pie>
+   240→          <Tooltip
+   241→            formatter={(v: number, name: string) => [formatToman(v), name]}
+   242→            contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #E6E8EC', direction: 'rtl', fontSize: 12 }}
+   243→          />
+   244→        </PieChart>
+   245→      </ResponsiveContainer>
+   246→    </div>
+   247→  )
+   248→}
+   249→
+   250→/* ---------------- انبار ---------------- */
+   251→
+   252→function InventoryTab() {
+   253→  const [data, setData] = useState<{ products: Product[]; purchases: Purchase[]; sales: ProductSale[]; inventoryValue: number } | null>(null)
+   254→  const [open, setOpen] = useState(false)
+   255→  const { toast } = useToast()
+   256→
+   257→  const load = useCallback(async () => {
+   258→    const j = await fetch('/api/inventory').then((r) => r.json())
+   259→    setData(j)
+   260→  }, [])
+   261→  useEffect(() => {
+   262→    load()
+   263→  }, [load])
+   264→
+   265→  if (!data) return <LoadingBlock rows={5} />
+   266→
+   267→  const lowStock = data.products.filter((p) => p.stockQty <= p.minStock)
+   268→
+   269→  return (
+   270→    <div className="space-y-4">
+   271→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+   272→        <StatCard title="ارزش موجودی انبار" value={formatToman(data.inventoryValue)} tone="purple" icon={<Package className="h-5 w-5" />} />
+   273→        <StatCard title="اقلام زیر حد هشدار" value={`${faDigits(lowStock.length)} قلم`} tone={lowStock.length ? 'red' : 'green'} icon={<AlertTriangle className="h-5 w-5" />} />
+   274→        <StatCard title="تعداد اقلام" value={`${faDigits(data.products.length)} قلم`} />
+   275→        <StatCard
+   276→          title="خریدهای اخیر"
+   277→          value={`${faDigits(data.purchases.length)} فقره`}
+   278→          hint={data.purchases[0] ? `آخرین: ${formatJDate(new Date(data.purchases[0].date), false)}` : undefined}
+   279→        />
+   280→      </div>
+   281→
+   282→      <div className="flex justify-end">
+   283→        <PurchaseDialog
+   284→          products={data.products}
+   285→          onDone={() => {
+   286→            toast({ title: 'خرید ثبت شد', description: 'موجودی انبار به‌روزرسانی شد' })
+   287→            load()
+   288→          }}
+   289→          open={open}
+   290→          setOpen={setOpen}
+   291→        />
+   292→      </div>
+   293→
+   294→      <Card className="rounded-2xl">
+   295→        <CardHeader className="pb-2">
+   296→          <CardTitle className="text-base">موجودی کالا</CardTitle>
+   297→        </CardHeader>
+   298→        <CardContent className="overflow-x-auto scroll-thin">
+   299→          <table className="w-full text-sm min-w-[680px]">
+   300→            <thead>
+   301→              <tr className="text-[11px] text-muted-foreground border-b">
+   302→                <th className="text-right py-2 font-medium">کالا</th>
+   303→                <th className="text-right py-2 font-medium">دسته</th>
+   304→                <th className="text-center py-2 font-medium">موجودی</th>
+   305→                <th className="text-center py-2 font-medium">قیمت خرید</th>
+   306→                <th className="text-center py-2 font-medium">قیمت فروش</th>
+   307→                <th className="text-center py-2 font-medium">تأمین‌کننده</th>
+   308→              </tr>
+   309→            </thead>
+   310→            <tbody>
+   311→              {data.products.map((p) => {
+   312→                const low = p.stockQty <= p.minStock
+   313→                return (
+   314→                  <tr key={p.id} className="border-b last:border-0">
+   315→                    <td className="py-2.5 font-medium">{p.name}</td>
+   316→                    <td className="py-2.5 text-xs text-muted-foreground">{p.category}</td>
+   317→                    <td className="py-2.5 text-center">
+   318→                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${low ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}`}>
+   319→                        {faDigits(p.stockQty)} {p.unit}
+   320→                      </span>
+   321→                      {low ? <div className="text-[9px] text-rose-600 mt-0.5">زیر حد هشدار ({faDigits(p.minStock)})</div> : null}
+   322→                    </td>
+   323→                    <td className="py-2.5 text-center text-xs">{formatToman(p.purchasePrice)}</td>
+   324→                    <td className="py-2.5 text-center text-xs">{formatToman(p.salePrice)}</td>
+   325→                    <td className="py-2.5 text-center text-xs text-muted-foreground">{p.supplier}</td>
+   326→                  </tr>
+   327→                )
+   328→              })}
+   329→            </tbody>
+   330→          </table>
+   331→        </CardContent>
+   332→      </Card>
+   333→
+   334→      <div className="grid lg:grid-cols-2 gap-4">
+   335→        <Card className="rounded-2xl">
+   336→          <CardHeader className="pb-2">
+   337→            <CardTitle className="text-base">خریدهای اخیر</CardTitle>
+   338→          </CardHeader>
+   339→          <CardContent className="space-y-2 max-h-72 overflow-y-auto scroll-thin">
+   340→            {data.purchases.map((pu) => (
+   341→              <div key={pu.id} className="rounded-xl border px-3 py-2.5">
+   342→                <div className="flex items-center justify-between text-sm">
+   343→                  <span className="font-semibold">{pu.supplier}</span>
+   344→                  <span className="font-bold">{formatToman(pu.total)}</span>
+   345→                </div>
+   346→                <div className="text-[11px] text-muted-foreground mt-1">
+   347→                  {formatJDate(new Date(pu.date))} — {pu.items.map((i) => `${i.product.name} ×${faDigits(i.qty)}`).join('، ')}
+   348→                </div>
+   349→              </div>
+   350→            ))}
+   351→          </CardContent>
+   352→        </Card>
+   353→        <Card className="rounded-2xl">
+   354→          <CardHeader className="pb-2">
+   355→            <CardTitle className="text-base">فروش کالا به بیماران</CardTitle>
+   356→          </CardHeader>
+   357→          <CardContent className="space-y-2 max-h-72 overflow-y-auto scroll-thin">
+   358→            {data.sales.length === 0 ? <EmptyState text="فروشی ثبت نشده." /> : null}
+   359→            {data.sales.map((s) => (
+   360→              <div key={s.id} className="rounded-xl border px-3 py-2.5 flex items-center justify-between">
+   361→                <div>
+   362→                  <div className="text-sm font-medium">{s.product.name} × {faDigits(s.qty)}</div>
+   363→                  <div className="text-[11px] text-muted-foreground">
+   364→                    {s.patient ? `${s.patient.firstName} ${s.patient.lastName} · ` : ''}{formatJDate(new Date(s.date))}
+   365→                  </div>
+   366→                </div>
+   367→                <span className="text-sm font-bold">{formatToman(s.total)}</span>
+   368→              </div>
+   369→            ))}
+   370→          </CardContent>
+   371→        </Card>
+   372→      </div>
+   373→    </div>
+   374→  )
+   375→}
+   376→
+   377→function PurchaseDialog({
+   378→  products, onDone, open, setOpen,
+   379→}: {
+   380→  products: Product[]
+   381→  onDone: () => void
+   382→  open: boolean
+   383→  setOpen: (v: boolean) => void
+   384→}) {
+   385→  const [supplier, setSupplier] = useState('')
+   386→  const [items, setItems] = useState<{ productId: string; qty: string }[]>([{ productId: '', qty: '1' }])
+   387→  const [saving, setSaving] = useState(false)
+   388→
+   389→  const submit = async () => {
+   390→    const rows = items.filter((i) => i.productId && Number(i.qty) > 0).map((i) => ({ productId: i.productId, qty: Number(i.qty) }))
+   391→    if (!supplier.trim() || rows.length === 0) return
+   392→    setSaving(true)
+   393→    const r = await fetch('/api/inventory', {
+   394→      method: 'POST',
+   395→      headers: { 'Content-Type': 'application/json' },
+   396→      body: JSON.stringify({ supplier, items: rows }),
+   397→    })
+   398→    setSaving(false)
+   399→    if (r.ok) {
+   400→      setOpen(false)
+   401→      setSupplier('')
+   402→      setItems([{ productId: '', qty: '1' }])
+   403→      onDone()
+   404→    }
+   405→  }
+   406→
+   407→  return (
+   408→    <Dialog open={open} onOpenChange={setOpen}>
+   409→      <DialogTrigger asChild>
+   410→        <Button size="sm" className="rounded-xl">
+   411→          <Plus className="h-4 w-4 ml-1" /> ثبت خرید
+   412→        </Button>
+   413→      </DialogTrigger>
+   414→      <DialogContent className="rounded-2xl max-w-lg">
+   415→        <DialogHeader>
+   416→          <DialogTitle className="text-right">ثبت خرید انبار</DialogTitle>
+   417→        </DialogHeader>
+   418→        <div className="space-y-3">
+   419→          <div>
+   420→            <Label className="text-xs text-muted-foreground">تأمین‌کننده</Label>
+   421→            <Input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="مثلاً: آریا دنت تجارت" className="rounded-xl mt-1" />
+   422→          </div>
+   423→          {items.map((it, idx) => (
+   424→            <div key={idx} className="grid grid-cols-[1fr_100px] gap-2">
+   425→              <Select value={it.productId} onValueChange={(v) => setItems((arr) => arr.map((x, i) => (i === idx ? { ...x, productId: v } : x)))}>
+   426→                <SelectTrigger className="rounded-xl"><SelectValue placeholder="انتخاب کالا" /></SelectTrigger>
+   427→                <SelectContent>
+   428→                  {products.map((p) => (
+   429→                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+   430→                  ))}
+   431→                </SelectContent>
+   432→              </Select>
+   433→              <Input
+   434→                type="number"
+   435→                min={1}
+   436→                value={it.qty}
+   437→                onChange={(e) => setItems((arr) => arr.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))}
+   438→                className="rounded-xl"
+   439→                placeholder="تعداد"
+   440→              />
+   441→            </div>
+   442→          ))}
+   443→          <div className="flex justify-between">
+   444→            <Button size="sm" variant="outline" className="rounded-xl text-xs" onClick={() => setItems((a) => [...a, { productId: '', qty: '1' }])}>
+   445→              <Plus className="h-3.5 w-3.5 ml-1" /> افزودن قلم
+   446→            </Button>
+   447→            <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setItems((a) => a.slice(0, -1))} disabled={items.length <= 1}>
+   448→              حذف قلم آخر
+   449→            </Button>
+   450→          </div>
+   451→          <Button className="w-full rounded-xl" onClick={submit} disabled={saving}>
+   452→            {saving ? 'در حال ثبت…' : 'ثبت خرید و افزایش موجودی'}
+   453→          </Button>
+   454→        </div>
+   455→      </DialogContent>
+   456→    </Dialog>
+   457→  )
+   458→}
+   459→
+   460→/* ---------------- هزینه‌ها ---------------- */
+   461→
+   462→function ExpensesTab() {
+   463→  const [expenses, setExpenses] = useState<Expense[] | null>(null)
+   464→  const [open, setOpen] = useState(false)
+   465→  const { toast } = useToast()
+   466→
+   467→  const load = useCallback(async () => {
+   468→    const j = await fetch('/api/expenses').then((r) => r.json())
+   469→    setExpenses(j.expenses ?? [])
+   470→  }, [])
+   471→  useEffect(() => {
+   472→    load()
+   473→  }, [load])
+   474→
+   475→  const total = (expenses ?? []).reduce((s, e) => s + e.amount, 0)
+   476→
+   477→  return (
+   478→    <div className="space-y-4">
+   479→      <div className="grid grid-cols-2 gap-3">
+   480→        <StatCard title="جمع ۴۰ هزینه‌ی اخیر" value={formatToman(total)} tone="gold" icon={<Wallet className="h-5 w-5" />} />
+   481→        <StatCard title="تعداد رکوردها" value={faDigits(expenses?.length ?? 0)} />
+   482→      </div>
+   483→
+   484→      <div className="flex justify-end">
+   485→        <AddExpenseDialog
+   486→          onDone={() => {
+   487→            toast({ title: 'هزینه ثبت شد' })
+   488→            load()
+   489→          }}
+   490→          open={open}
+   491→          setOpen={setOpen}
+   492→        />
+   493→      </div>
+   494→
+   495→      <Card className="rounded-2xl">
+   496→        <CardContent className="p-0">
+   497→          {!expenses ? (
+   498→            <div className="p-4"><LoadingBlock rows={5} /></div>
+   499→          ) : (
+   500→            <div className="overflow-x-auto scroll-thin">
+   501→              <table className="w-full text-sm min-w-[560px]">
+   502→                <thead>
+   503→                  <tr className="text-[11px] text-muted-foreground border-b">
+   504→                    <th className="text-right py-2.5 px-4 font-medium">تاریخ</th>
+   505→                    <th className="text-right py-2.5 font-medium">دسته</th>
+   506→                    <th className="text-right py-2.5 font-medium">شرح</th>
+   507→                    <th className="text-left py-2.5 px-4 font-medium">مبلغ</th>
+   508→                  </tr>
+   509→                </thead>
+   510→                <tbody>
+   511→                  {expenses.map((e) => (
+   512→                    <tr key={e.id} className="border-b last:border-0">
+   513→                      <td className="py-2.5 px-4 text-xs text-muted-foreground whitespace-nowrap">{formatJDate(new Date(e.date))}</td>
+   514→                      <td className="py-2.5 text-xs">
+   515→                        <Pill label={EXPENSE_CATEGORY_LABEL[e.category] ?? e.category} color="bg-secondary text-secondary-foreground border-transparent" />
+   516→                      </td>
+   517→                      <td className="py-2.5 text-xs text-muted-foreground">{e.description}</td>
+   518→                      <td className="py-2.5 px-4 text-xs font-bold text-left whitespace-nowrap">{formatToman(e.amount)}</td>
+   519→                    </tr>
+   520→                  ))}
+   521→                </tbody>
+   522→              </table>
+   523→            </div>
+   524→          )}
+   525→        </CardContent>
+   526→      </Card>
+   527→    </div>
+   528→  )
+   529→}
+   530→
+   531→function AddExpenseDialog({
+   532→  onDone, open, setOpen,
+   533→}: {
+   534→  onDone: () => void
+   535→  open: boolean
+   536→  setOpen: (v: boolean) => void
+   537→}) {
+   538→  const [category, setCategory] = useState('RENT')
+   539→  const [amount, setAmount] = useState('')
+   540→  const [desc, setDesc] = useState('')
+   541→  const [saving, setSaving] = useState(false)
+   542→
+   543→  const submit = async () => {
+   544→    if (!amount || Number(amount) <= 0) return
+   545→    setSaving(true)
+   546→    const r = await fetch('/api/expenses', {
+   547→      method: 'POST',
+   548→      headers: { 'Content-Type': 'application/json' },
+   549→      body: JSON.stringify({ category, amount: Number(amount), description: desc || 'ثبت دستی' }),
+   550→    })
+   551→    setSaving(false)
+   552→    if (r.ok) {
+   553→      setOpen(false)
+   554→      setAmount('')
+   555→      setDesc('')
+   556→      onDone()
+   557→    }
+   558→  }
+   559→
+   560→  return (
+   561→    <Dialog open={open} onOpenChange={setOpen}>
+   562→      <DialogTrigger asChild>
+   563→        <Button size="sm" className="rounded-xl">
+   564→          <Plus className="h-4 w-4 ml-1" /> ثبت هزینه
+   565→        </Button>
+   566→      </DialogTrigger>
+   567→      <DialogContent className="rounded-2xl max-w-md">
+   568→        <DialogHeader>
+   569→          <DialogTitle className="text-right">ثبت هزینه</DialogTitle>
+   570→        </DialogHeader>
+   571→        <div className="space-y-3">
+   572→          <div>
+   573→            <Label className="text-xs text-muted-foreground">دسته‌بندی</Label>
+   574→            <Select value={category} onValueChange={setCategory}>
+   575→              <SelectTrigger className="rounded-xl mt-1 w-full"><SelectValue /></SelectTrigger>
+   576→              <SelectContent>
+   577→                {['RENT', 'SALARY', 'UTILITIES', 'MARKETING', 'EQUIPMENT', 'OTHER'].map((c) => (
+   578→                  <SelectItem key={c} value={c}>{EXPENSE_CATEGORY_LABEL[c]}</SelectItem>
+   579→                ))}
+   580→              </SelectContent>
+   581→            </Select>
+   582→          </div>
+   583→          <div>
+   584→            <Label className="text-xs text-muted-foreground">مبلغ (تومان)</Label>
+   585→            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="rounded-xl mt-1" placeholder="مثلاً 45000000" />
+   586→          </div>
+   587→          <div>
+   588→            <Label className="text-xs text-muted-foreground">شرح</Label>
+   589→            <Input value={desc} onChange={(e) => setDesc(e.target.value)} className="rounded-xl mt-1" placeholder="اختیاری" />
+   590→          </div>
+   591→          <Button className="w-full rounded-xl" onClick={submit} disabled={saving}>
+   592→            {saving ? 'در حال ثبت…' : 'ثبت هزینه'}
+   593→          </Button>
+   594→        </div>
+   595→      </DialogContent>
+   596→    </Dialog>
+   597→  )
+   598→}
+   599→

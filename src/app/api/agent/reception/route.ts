@@ -2,8 +2,11 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { runToolAgent, type AgentTool, type AgentStep } from '@/lib/agents'
 import { requireRole } from '@/lib/auth'
-import { formatJDate, formatTime, formatDayRelative, weekdayName, faDigits } from '@/lib/jalali'
+import { utcDayStart, formatJDate, formatTime, formatDayRelative, weekdayName, faDigits } from '@/lib/jalali'
 import { formatToman, APPOINTMENT_STATUS } from '@/lib/format'
+import { cashBalances } from '@/lib/accounting'
+import { getClinicDNA } from '@/lib/clinic-dna'
+import { logAiCall } from '@/lib/ai'
 
 export const maxDuration = 60
 
@@ -257,6 +260,83 @@ const tools: AgentTool[] = [
       return { ok: true, taskId: task.id, message: 'به کارتابل اضافه شد' }
     },
   },
+  {
+    name: 'tomorrow_calls',
+    description: 'لیست نوبت‌های فردا برای تماس یادآوری + ثبت خودکار کار یادآوری در کارتابل',
+    argsHint: '{"createTasks":true}',
+    run: async (args) => {
+      const tomorrow = new Date(utcDayStart(new Date()).getTime() + 24 * 3600 * 1000)
+      const end = new Date(tomorrow.getTime() + 24 * 3600 * 1000)
+      const appts = await db.appointment.findMany({
+        where: { start: { gte: tomorrow, lt: end }, status: { in: ['PENDING', 'CONFIRMED'] } },
+        orderBy: { start: 'asc' },
+        include: { patient: { select: { firstName: true, lastName: true, phone: true } }, doctor: { select: { name: true } }, service: { select: { name: true } } },
+      })
+      if (args.createTasks === true) {
+        let created = 0
+        for (const a of appts) {
+          const exists = await db.task.findFirst({ where: { appointmentId: a.id, title: { contains: 'یادآوری' }, status: { in: ['OPEN', 'IN_PROGRESS'] } } })
+          if (!exists) {
+            await db.task.create({
+              data: {
+                branchId: a.branchId,
+                title: `یادآوری نوبت فردا — ${a.patient.firstName} ${a.patient.lastName}`,
+                description: `تماس یادآوری برای نوبت ${a.service.name} با ${a.doctor.name} — شماره: ${a.patient.phone}`,
+                assigneeRole: 'RECEPTIONIST',
+                assigneeName: 'سمیرا (منشی)',
+                patientId: a.patientId,
+                appointmentId: a.id,
+                dueAt: new Date(Date.now() + 6 * 3600 * 1000),
+                priority: 'MEDIUM',
+                status: 'OPEN',
+                source: 'SYSTEM',
+              },
+            })
+            created++
+          }
+        }
+        return { count: appts.length, tasksCreated: created, list: appts.map((a) => ({ time: formatTime(a.start), patient: `${a.patient.firstName} ${a.patient.lastName}`, phone: a.patient.phone, service: a.service.name, doctor: a.doctor.name })) }
+      }
+      return appts.map((a) => ({ time: formatTime(a.start), patient: `${a.patient.firstName} ${a.patient.lastName}`, phone: a.patient.phone, service: a.service.name, doctor: a.doctor.name }))
+    },
+  },
+  {
+    name: 'unread_messages',
+    description: 'پیام‌های خوانده‌نشده بیماران در صندوق پیام‌ها',
+    argsHint: '{}',
+    run: async () => {
+      const msgs = await db.message.findMany({
+        where: { direction: 'IN', readAt: null },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: { patient: { select: { firstName: true, lastName: true } } },
+      })
+      return msgs.map((m) => ({ patient: `${m.patient.firstName} ${m.patient.lastName}`, body: m.body.slice(0, 120), at: formatTime(m.createdAt) }))
+    },
+  },
+  {
+    name: 'waitlist_status',
+    description: 'صف انتظار نوبت — بیمارانی که منتظر ظرفیت خالی هستند',
+    argsHint: '{}',
+    run: async () => {
+      const items = await db.waitlist.findMany({
+        where: { status: { in: ['WAITING', 'OFFERED'] } },
+        orderBy: { createdAt: 'asc' },
+        take: 10,
+        include: { patient: { select: { firstName: true, lastName: true } }, doctor: { select: { name: true } } },
+      })
+      return items.map((w) => ({ patient: `${w.patient.firstName} ${w.patient.lastName}`, doctor: w.doctor?.name ?? 'بدون ترجیح', priority: w.priority === 'URGENT' ? 'فوری' : 'معمولی', note: w.note }))
+    },
+  },
+  {
+    name: 'cash_status',
+    description: 'موجودی صندوق‌های کلینیک برای بستن صندوق',
+    argsHint: '{}',
+    run: async () => {
+      const accounts = await cashBalances()
+      return accounts.map((a) => ({ name: a.name, type: a.type === 'BANK' ? 'بانک' : 'صندوق', balanceFa: formatToman(a.balance) }))
+    },
+  },
 ]
 
 const TOOL_TITLES: Record<string, string> = {
@@ -266,6 +346,10 @@ const TOOL_TITLES: Record<string, string> = {
   create_appointment: 'ثبت نوبت در سیستم',
   patient_history: 'مرور پرونده‌ی بیمار',
   create_task: 'ثبت کار در کارتابل',
+  tomorrow_calls: 'لیست تماس یادآوری فردا',
+  unread_messages: 'پیام‌های خوانده‌نشده',
+  waitlist_status: 'صف انتظار',
+  cash_status: 'موجودی صندوق',
 }
 
 const SYSTEM = `شما «10on» هستید؛ دستیار پذیرش کلینیک دندان‌پزشکی «لبخند مهر» (۳ شعبه) که به منشی پذیرش کمک می‌کند.
@@ -305,8 +389,10 @@ export async function POST(request: Request) {
     : []
   if (!message) return NextResponse.json({ error: 'پیام خالی است' }, { status: 400 })
 
+  const dna = await getClinicDNA()
+  const started = Date.now()
   const turn = await runToolAgent({
-    system: SYSTEM,
+    system: SYSTEM + dna.text,
     tools,
     history,
     userMessage: message,
@@ -314,6 +400,7 @@ export async function POST(request: Request) {
     toolTitles: TOOL_TITLES,
     maxSteps: 5,
   })
+  await logAiCall({ role: user.role === 'ADMIN' ? 'MANAGER' : 'RECEPTIONIST', agent: 'RECEPTION', ok: true, aiUsed: turn.aiUsed, latencyMs: Date.now() - started })
 
   return NextResponse.json({
     answer: turn.answer,

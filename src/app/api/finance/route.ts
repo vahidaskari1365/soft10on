@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { monthlySeries } from '@/lib/finance'
 import { monthKeyStart, monthKeyEnd, lastNMonthKeys } from '@/lib/jalali'
+import { cashBalances } from '@/lib/accounting'
 import { EXPENSE_CATEGORY_LABEL } from '@/lib/format'
 
 export async function GET(request: Request) {
@@ -62,6 +63,17 @@ export async function GET(request: Request) {
   const revenue = revenueServices + revenueProducts
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0) + commission + cogs
 
+  // موجودی صندوق‌ها + چک‌ها + فاکتورهای بازی (بخش حسابداری کامل)
+  const [accounts, checksPending, invoiceAgg] = await Promise.all([
+    cashBalances(branchId),
+    db.check.findMany({ where: { status: { in: ['IN_HAND', 'DEPOSITED'] }, ...(branchId ? { branchId } : {}) } }),
+    db.invoice.aggregate({
+      where: { status: { in: ['ISSUED', 'PARTIAL'] }, ...(branchId ? { branchId } : {}) },
+      _sum: { total: true },
+      _count: true,
+    }),
+  ])
+
   return NextResponse.json({
     monthKey,
     pnl: {
@@ -80,5 +92,13 @@ export async function GET(request: Request) {
     doctors: [...byDoctor.values()].sort((a, b) => b.revenue - a.revenue),
     series,
     appointmentCount: doneAppts.length,
+    accounting: {
+      cashAccounts: accounts,
+      totalCash: accounts.reduce((s, a) => s + a.balance, 0),
+      checksReceivedPending: checksPending.filter((c) => c.direction === 'RECEIVED').reduce((s, c) => s + c.amount, 0),
+      checksIssuedPending: checksPending.filter((c) => c.direction === 'ISSUED').reduce((s, c) => s + c.amount, 0),
+      openInvoices: invoiceAgg._count,
+      openInvoicesAmount: invoiceAgg._sum.total ?? 0,
+    },
   })
 }
