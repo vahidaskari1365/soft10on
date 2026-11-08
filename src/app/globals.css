@@ -1,0 +1,153 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-vazir), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-vazir);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: #f7f4ed;
+  --foreground: #27212f;
+  --card: #ffffff;
+  --card-foreground: #27212f;
+  --popover: #ffffff;
+  --popover-foreground: #27212f;
+  --primary: #5b2a86;
+  --primary-foreground: #fbf9f4;
+  --secondary: #efe9f7;
+  --secondary-foreground: #4a2a66;
+  --muted: #f1ede4;
+  --muted-foreground: #787184;
+  --accent: #f7efda;
+  --accent-foreground: #7a5d14;
+  --destructive: #b3402e;
+  --border: #e7e1d5;
+  --input: #e7e1d5;
+  --ring: #5b2a86;
+  --chart-1: #5b2a86;
+  --chart-2: #c9a227;
+  --chart-3: #2a9d8f;
+  --chart-4: #e76f51;
+  --chart-5: #8d80ab;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #27212f;
+  --sidebar-primary: #5b2a86;
+  --sidebar-primary-foreground: #fbf9f4;
+  --sidebar-accent: #f3eefa;
+  --sidebar-accent-foreground: #4a2a66;
+  --sidebar-border: #ece6f4;
+  --sidebar-ring: #5b2a86;
+}
+
+.dark {
+  --background: #121212;
+  --foreground: #edeaef;
+  --card: #1a1a1a;
+  --card-foreground: #edeaef;
+  --popover: #1a1a1a;
+  --popover-foreground: #edeaef;
+  --primary: #b794dd;
+  --primary-foreground: #1a1024;
+  --secondary: #2a2233;
+  --secondary-foreground: #edeaef;
+  --muted: #242028;
+  --muted-foreground: #a49bac;
+  --accent: #2a2438;
+  --accent-foreground: #edeaef;
+  --destructive: #e76f51;
+  --border: #2e2a33;
+  --input: #2e2a33;
+  --ring: #b794dd;
+  --chart-1: #b794dd;
+  --chart-2: #d9b942;
+  --chart-3: #4fb8aa;
+  --chart-4: #f08a6c;
+  --chart-5: #a89dc4;
+  --sidebar: #171419;
+  --sidebar-foreground: #edeaef;
+  --sidebar-primary: #b794dd;
+  --sidebar-primary-foreground: #1a1024;
+  --sidebar-accent: #241f2c;
+  --sidebar-accent-foreground: #edeaef;
+  --sidebar-border: #2a2530;
+  --sidebar-ring: #b794dd;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* custom scrollbars */
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #d5cfc4;
+  border-radius: 999px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* chat bubble animation */
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.bubble-in {
+  animation: bubble-in 0.25s ease-out both;
+}
+
+/* pulsing dot for agent trace */
+@keyframes trace-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.trace-active {
+  animation: trace-pulse 1.2s ease-in-out infinite;
+}

@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Doctor {
+  id             String       @id @default(cuid())
+  name           String
+  specialty      String
+  commissionRate Float        // سهم پزشک از هر خدمت (0.4 = ۴۰٪)
+  color          String       @default("#5B2A86")
+  active         Boolean      @default(true)
+  appointments   Appointment[]
+}
+
+model Service {
+  id           String        @id @default(cuid())
+  name         String
+  category     String  // ترمیمی، جراحی، زیبایی، پیشگیری، تشخیص، ارتودنسی
+  price        Float   // تومان
+  durationMin  Int     @default(30)
+  appointments Appointment[]
+}
+
+model Patient {
+  id                 String        @id @default(cuid())
+  firstName          String
+  lastName           String
+  phone              String
+  nationalId         String?
+  birthYear          Int?
+  notes              String?
+  incompleteTreatment Boolean      @default(false) // درمان نیمه‌کاره
+  createdAt          DateTime      @default(now())
+  appointments       Appointment[]
+  tasks              Task[]
+  productSales       ProductSale[]
+}
+
+model Appointment {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id])
+  start     DateTime
+  status    String   @default("CONFIRMED") // PENDING | CONFIRMED | DONE | CANCELLED | NO_SHOW
+  source    String   @default("PHONE") // ASSISTANT | WHATSAPP | PHONE | WALKIN | PANEL
+  price     Float
+  paid      Boolean  @default(false)
+  deposit   Float    @default(0)
+  note      String?
+  createdAt DateTime @default(now())
+  tasks     Task[]
+
+  @@index([start])
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  title        String
+  description  String?
+  assigneeRole String     @default("RECEPTIONIST") // RECEPTIONIST | DOCTOR | MANAGER
+  assigneeName String?
+  patientId    String?
+  patient      Patient?   @relation(fields: [patientId], references: [id])
+  appointmentId String?
+  appointment  Appointment? @relation(fields: [appointmentId], references: [id])
+  dueAt        DateTime
+  priority     String     @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status       String     @default("OPEN") // OPEN | IN_PROGRESS | DONE | BLOCKED
+  source       String     @default("MANUAL") // ASSISTANT | DOCTOR | MANAGER | SYSTEM | MANUAL
+  createdAt    DateTime   @default(now())
+  doneAt       DateTime?
+}
+
+model Product {
+  id            String        @id @default(cuid())
+  name          String
+  category      String
+  unit          String        @default("عدد")
+  purchasePrice Float
+  salePrice     Float
+  stockQty      Int
+  minStock      Int           @default(5)
+  supplier      String?
+  purchaseItems PurchaseItem[]
+  sales         ProductSale[]
+}
+
+model SystemMeta {
+  key   String @id
+  value String
+}
+
+model Purchase {
+  id        String         @id @default(cuid())
+  date      DateTime
+  supplier  String
+  total     Float
+  items     PurchaseItem[]
+}
+
+model PurchaseItem {
+  id         String  @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  qty        Int
+  unitPrice  Float
+}
+
+model ProductSale {
+  id        String   @id @default(cuid())
+  date      DateTime
+  patientId String?
+  patient   Patient? @relation(fields: [patientId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  qty       Int
+  unitPrice Float
+  total     Float
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  date        DateTime
+  category    String   // RENT | SALARY | UTILITIES | MARKETING | EQUIPMENT | OTHER
+  amount      Float
+  description String
+}
