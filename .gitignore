@@ -53,7 +53,8 @@ server.log
 # Skills directory
 /skills/
 # project-specific (sandbox & local artifacts)
-/db/
+/db/*
+!/db/seed.db
 /dev.log
 /server.log
 /skills/
