@@ -40,7 +40,7 @@ export const EXPENSE_CATEGORY_LABEL: Record<string, string> = {
 export const APPOINTMENT_STATUS: Record<string, { label: string; color: string }> = {
   PENDING: { label: 'در انتظار تأیید', color: 'bg-amber-100 text-amber-800 border-amber-200' },
   CONFIRMED: { label: 'تأییدشده', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  DONE: { label: 'انجام‌شده', color: 'bg-violet-100 text-violet-800 border-violet-200' },
+  DONE: { label: 'انجام‌شده', color: 'bg-teal-100 text-teal-800 border-teal-200' },
   CANCELLED: { label: 'لغوشده', color: 'bg-stone-100 text-stone-600 border-stone-200' },
   NO_SHOW: { label: 'عدم حضور', color: 'bg-rose-100 text-rose-700 border-rose-200' },
 }
@@ -53,10 +53,10 @@ export const TASK_STATUS: Record<string, { label: string; color: string }> = {
 }
 
 export const TASK_PRIORITY: Record<string, { label: string; color: string }> = {
-  LOW: { label: 'کم', color: '#8D80AB' },
-  MEDIUM: { label: 'متوسط', color: '#C9A227' },
-  HIGH: { label: 'زیاد', color: '#E76F51' },
-  URGENT: { label: 'فوری', color: '#C0392B' },
+  LOW: { label: 'کم', color: '#71757A' },
+  MEDIUM: { label: 'متوسط', color: '#B08D57' },
+  HIGH: { label: 'زیاد', color: '#EA580C' },
+  URGENT: { label: 'فوری', color: '#DC2626' },
 }
 
 export const SOURCE_LABEL: Record<string, string> = {

@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import type { ReactNode } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 
 export function StatCard({
   title,
@@ -10,23 +10,42 @@ export function StatCard({
   hint,
   icon,
   tone = 'default',
+  onClick,
 }: {
   title: string
   value: string
   hint?: ReactNode
   icon?: ReactNode
   tone?: 'default' | 'purple' | 'gold' | 'green' | 'red'
+  onClick?: () => void
 }) {
   const tones: Record<string, string> = {
     default: 'bg-card',
-    purple: 'bg-[#5B2A86] text-[#FBF9F4] border-[#5B2A86]',
-    gold: 'bg-[#C9A227] text-[#2b2005] border-[#C9A227]',
-    green: 'bg-[#2A9D8F] text-white border-[#2A9D8F]',
-    red: 'bg-[#FBEAE7] text-[#8C2F1F] border-[#F0CFC8]',
+    purple: 'bg-linear-to-tl from-sky-600 via-sky-500 to-teal-500 text-white border-transparent shadow-lg shadow-sky-500/20',
+    gold: 'bg-linear-to-tl from-[#B08D57] to-[#CBAF83] text-white border-transparent shadow-lg shadow-[#B08D57]/25',
+    green: 'bg-linear-to-tl from-teal-600 to-teal-400 text-white border-transparent shadow-lg shadow-teal-500/20',
+    red: 'bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]',
   }
   const isColor = tone !== 'default' && tone !== 'red'
+  const clickable = typeof onClick === 'function'
+
+  function handleKey(e: KeyboardEvent<HTMLDivElement>) {
+    if (!clickable) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onClick?.()
+    }
+  }
+
   return (
-    <Card className={cn('rounded-2xl shadow-sm border', tones[tone])}>
+    <Card
+      className={cn('rounded-2xl border', tones[tone], clickable && 'cursor-pointer card-hover outline-none focus-visible:ring-2 focus-visible:ring-sky-400')}
+      onClick={onClick}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={handleKey}
+      aria-label={clickable ? `${title} — رفتن به بخش مربوط` : undefined}
+    >
       <CardContent className="p-4 md:p-5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -36,7 +55,7 @@ export function StatCard({
             </div>
             {hint ? <div className={cn('mt-1 text-[11px]', isColor ? 'opacity-85' : tone === 'red' ? 'opacity-90' : 'text-muted-foreground')}>{hint}</div> : null}
           </div>
-          {icon ? <div className={cn('shrink-0 rounded-xl p-2', isColor || tone === 'red' ? 'bg-white/15' : 'bg-secondary text-primary')}>{icon}</div> : null}
+          {icon ? <div className={cn('shrink-0 rounded-xl p-2', isColor || tone === 'red' ? 'bg-white/15' : 'bg-accent text-sky-600')}>{icon}</div> : null}
         </div>
       </CardContent>
     </Card>
@@ -71,7 +90,7 @@ export function Pill({ label, color }: { label: string; color: string }) {
   )
 }
 
-export function Avatar({ name, color = '#5B2A86', size = 36 }: { name: string; color?: string; size?: number }) {
+export function Avatar({ name, color = '#0284C7', size = 36 }: { name: string; color?: string; size?: number }) {
   const initial = name.trim().replace('دکتر ', '').charAt(0)
   return (
     <span

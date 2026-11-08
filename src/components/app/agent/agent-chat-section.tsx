@@ -160,7 +160,7 @@ export function AgentChatSection({
           <Card className="rounded-2xl shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 text-sm font-bold mb-3">
-                <Sparkles className="h-4 w-4 text-[#C9A227]" /> پیشنهاد شروع
+                <Sparkles className="h-4 w-4 text-[#B08D57]" /> پیشنهاد شروع
               </div>
               <div className="space-y-2">
                 {suggestions.map((s, i) => (

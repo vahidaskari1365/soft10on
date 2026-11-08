@@ -63,7 +63,7 @@ export async function POST(request: Request) {
           name: fullName.startsWith('دکتر') ? fullName : `دکتر ${fullName}`,
           specialty: String(body.specialty ?? 'دندان‌پزشکی عمومی'),
           commissionRate: Number(body.commissionRate) > 0 ? Number(body.commissionRate) : 0.35,
-          color: '#5B2A86',
+          color: '#0284C7',
           branchId,
         },
       })

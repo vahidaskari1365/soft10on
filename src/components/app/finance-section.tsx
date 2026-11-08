@@ -18,7 +18,7 @@ import {
 import { Plus, Package, Wallet, TrendingUp, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
-const PIE_COLORS = ['#5B2A86', '#C9A227', '#2A9D8F', '#E76F51', '#8D80AB', '#4A2A66', '#B3402E']
+const PIE_COLORS = ['#0284C7', '#B08D57', '#0D9488', '#EA580C', '#71757A', '#075985', '#DC2626']
 
 export function FinanceSection() {
   return (
@@ -138,17 +138,17 @@ function ReportTab() {
             <div dir="ltr" className="h-[290px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={data.series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee7db" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ECECF0" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={0} angle={-35} textAnchor="end" height={50} />
                   <YAxis tickFormatter={millionsShort} tick={{ fontSize: 11 }} width={44} />
                   <Tooltip
                     formatter={(v: number, name: string) => [formatToman(v), name]}
-                    contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #e7e1d5', direction: 'rtl' }}
+                    contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #E6E8EC', direction: 'rtl' }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="revenue" name="درآمد" fill="#5B2A86" radius={[6, 6, 0, 0]} maxBarSize={24} />
-                  <Bar dataKey="totalExpenses" name="هزینه‌ها" fill="#C9A227" radius={[6, 6, 0, 0]} maxBarSize={24} />
-                  <Line type="monotone" dataKey="netProfit" name="سود خالص" stroke="#2A9D8F" strokeWidth={2.5} dot={{ r: 3 }} />
+                  <Bar dataKey="revenue" name="درآمد" fill="#0284C7" radius={[6, 6, 0, 0]} maxBarSize={24} />
+                  <Bar dataKey="totalExpenses" name="هزینه‌ها" fill="#B08D57" radius={[6, 6, 0, 0]} maxBarSize={24} />
+                  <Line type="monotone" dataKey="netProfit" name="سود خالص" stroke="#0D9488" strokeWidth={2.5} dot={{ r: 3 }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -213,7 +213,7 @@ function ReportTab() {
                   </div>
                   <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-[#5B2A86]"
+                      className="h-full rounded-full bg-[#0284C7]"
                       style={{ width: `${Math.min(100, (d.revenue / Math.max(...data.doctors.map((x) => x.revenue))) * 100)}%` }}
                     />
                   </div>
@@ -239,7 +239,7 @@ function TopServicesMini({ services }: { services: { name: string; value: number
           </Pie>
           <Tooltip
             formatter={(v: number, name: string) => [formatToman(v), name]}
-            contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #e7e1d5', direction: 'rtl', fontSize: 12 }}
+            contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #E6E8EC', direction: 'rtl', fontSize: 12 }}
           />
         </PieChart>
       </ResponsiveContainer>

@@ -37,79 +37,97 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-deep: var(--deep);
+  --color-deep-foreground: var(--deep-foreground);
+  --color-mint: var(--mint);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ————— 10on palette (برداشته‌شده از 10on.vercel.app) ————— */
 :root {
-  --radius: 0.75rem;
-  --background: #f7f4ed;
-  --foreground: #27212f;
+  --radius: 1rem;
+  --background: #f7f9fb;
+  --foreground: #1b1e20;
   --card: #ffffff;
-  --card-foreground: #27212f;
+  --card-foreground: #1b1e20;
   --popover: #ffffff;
-  --popover-foreground: #27212f;
-  --primary: #5b2a86;
-  --primary-foreground: #fbf9f4;
-  --secondary: #efe9f7;
-  --secondary-foreground: #4a2a66;
-  --muted: #f1ede4;
-  --muted-foreground: #787184;
-  --accent: #f7efda;
-  --accent-foreground: #7a5d14;
-  --destructive: #b3402e;
-  --border: #e7e1d5;
-  --input: #e7e1d5;
-  --ring: #5b2a86;
-  --chart-1: #5b2a86;
-  --chart-2: #c9a227;
-  --chart-3: #2a9d8f;
-  --chart-4: #e76f51;
-  --chart-5: #8d80ab;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #27212f;
-  --sidebar-primary: #5b2a86;
-  --sidebar-primary-foreground: #fbf9f4;
-  --sidebar-accent: #f3eefa;
-  --sidebar-accent-foreground: #4a2a66;
-  --sidebar-border: #ece6f4;
-  --sidebar-ring: #5b2a86;
+  --popover-foreground: #1b1e20;
+  --primary: #0284c7;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f8;
+  --secondary-foreground: #0c4a6e;
+  --muted: #f4f4f5;
+  --muted-foreground: #71757a;
+  --accent: #e9f4fc;
+  --accent-foreground: #0c4a6e;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e6e8ec;
+  --input: #d7d8db;
+  --ring: #0ea5e9;
+  --chart-1: #0284c7;
+  --chart-2: #b08d57;
+  --chart-3: #0d9488;
+  --chart-4: #1b1e20;
+  --chart-5: #94a3b8;
+  --sidebar: #0a0e12;
+  --sidebar-foreground: #dfe5ea;
+  --sidebar-primary: #0284c7;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #161c22;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #1e252c;
+  --sidebar-ring: #38bdf8;
+  --gold: #b08d57;
+  --gold-foreground: #ffffff;
+  --deep: #0a0a0c;
+  --deep-foreground: #f4f4f5;
+  --mint: #8f9499;
 }
 
 .dark {
-  --background: #121212;
-  --foreground: #edeaef;
-  --card: #1a1a1a;
-  --card-foreground: #edeaef;
-  --popover: #1a1a1a;
-  --popover-foreground: #edeaef;
-  --primary: #b794dd;
-  --primary-foreground: #1a1024;
-  --secondary: #2a2233;
-  --secondary-foreground: #edeaef;
-  --muted: #242028;
-  --muted-foreground: #a49bac;
-  --accent: #2a2438;
-  --accent-foreground: #edeaef;
-  --destructive: #e76f51;
-  --border: #2e2a33;
-  --input: #2e2a33;
-  --ring: #b794dd;
-  --chart-1: #b794dd;
-  --chart-2: #d9b942;
-  --chart-3: #4fb8aa;
-  --chart-4: #f08a6c;
-  --chart-5: #a89dc4;
-  --sidebar: #171419;
-  --sidebar-foreground: #edeaef;
-  --sidebar-primary: #b794dd;
-  --sidebar-primary-foreground: #1a1024;
-  --sidebar-accent: #241f2c;
-  --sidebar-accent-foreground: #edeaef;
-  --sidebar-border: #2a2530;
-  --sidebar-ring: #b794dd;
+  --background: #131517;
+  --foreground: #edeae1;
+  --card: #1b1e20;
+  --card-foreground: #edeae1;
+  --popover: #1b1e20;
+  --popover-foreground: #edeae1;
+  --primary: #38bdf8;
+  --primary-foreground: #082f49;
+  --secondary: #232729;
+  --secondary-foreground: #b9bcc0;
+  --muted: #202426;
+  --muted-foreground: #99a09d;
+  --accent: #232729;
+  --accent-foreground: #d4d6d9;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #2a2e30;
+  --input: #33383a;
+  --ring: #38bdf8;
+  --chart-1: #38bdf8;
+  --chart-2: #d3b078;
+  --chart-3: #2dd4bf;
+  --chart-4: #edeae1;
+  --chart-5: #8f9499;
+  --sidebar: #1b1e20;
+  --sidebar-foreground: #edeae1;
+  --sidebar-primary: #b9bcc0;
+  --sidebar-primary-foreground: #101214;
+  --sidebar-accent: #232729;
+  --sidebar-accent-foreground: #b9bcc0;
+  --sidebar-border: #2a2e30;
+  --sidebar-ring: #8f9499;
+  --gold: #d3b078;
+  --gold-foreground: #1a130a;
+  --deep: #050507;
+  --deep-foreground: #edeae1;
+  --mint: #8f9499;
 }
 
 @layer base {
@@ -119,6 +137,10 @@
   body {
     @apply bg-background text-foreground;
   }
+  ::selection {
+    background: #bae6fd;
+    color: #082f49;
+  }
 }
 
 /* custom scrollbars */
@@ -127,11 +149,67 @@
   height: 6px;
 }
 .scroll-thin::-webkit-scrollbar-thumb {
-  background: #d5cfc4;
+  background: #c7d2dc;
   border-radius: 999px;
 }
 .scroll-thin::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ————— 10on brand utilities ————— */
+
+/* متن با گرادیانت برند (آسمانی → فیروزه‌ای) */
+.brand-gradient-text {
+  background: linear-gradient(115deg, #38bdf8 0%, #22d3ee 45%, #0d9488 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* بلوک عمیق برند با بافت شبکه‌ای (روی pseudo-element تا background-image گرادیانت را نپوشاند) */
+.deep-grid {
+  position: relative;
+}
+.deep-grid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to left, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+/* میکرو-انیمیشن برخواستن کارت */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -14px rgb(2 132 199 / 0.22);
+}
+
+/* حباب گرادیانت متحرک */
+@keyframes blob-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(18px, -24px) scale(1.08); }
+  66% { transform: translate(-14px, 14px) scale(0.94); }
+}
+.blob {
+  animation: blob-float 14s ease-in-out infinite;
+}
+.blob-delay {
+  animation-delay: -7s;
+}
+
+/* ورود نرم هر بخش */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-up {
+  animation: fade-up 0.3s ease-out both;
 }
 
 /* chat bubble animation */
@@ -151,3 +229,5 @@
 .trace-active {
   animation: trace-pulse 1.2s ease-in-out infinite;
 }
+
+/* v2 */

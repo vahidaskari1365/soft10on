@@ -107,7 +107,7 @@ export function AssistantSection({
         <Pill label="واتساپ" color="bg-emerald-100 text-emerald-800 border-emerald-200" />
         <Pill label="وب‌سایت" color="bg-violet-100 text-violet-800 border-violet-200" />
         <Pill label="پیامک" color="bg-amber-100 text-amber-800 border-amber-200" />
-        <Pill label="۲۴ ساعته" color="bg-[#F7EFDA] text-[#7a5d14] border-transparent" />
+        <Pill label="۲۴ ساعته" color="bg-[#F6EFE3] text-[#7C6434] border-transparent" />
       </SectionHeader>
 
       <div className="grid lg:grid-cols-3 gap-4">
@@ -115,7 +115,7 @@ export function AssistantSection({
         <Card className="rounded-2xl lg:col-span-2 flex flex-col h-[620px]">
           <CardContent className="p-0 flex flex-col h-full">
             {/* header */}
-            <div className="flex items-center gap-3 border-b px-4 py-3 bg-gradient-to-l from-[#5B2A86] to-[#7C4AA8] text-white rounded-t-2xl">
+            <div className="flex items-center gap-3 border-b px-4 py-3 bg-linear-to-l from-[#0284C7] to-[#0EA5E9] text-white rounded-t-2xl">
               <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
                 <Bot className="h-5 w-5" />
                 <span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-white" />
@@ -128,14 +128,14 @@ export function AssistantSection({
             </div>
 
             {/* messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-thin px-4 py-4 space-y-3 bg-[#FAF7F1]">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-thin px-4 py-4 space-y-3 bg-[#F8FAFC]">
               {bubbles.map((b, i) => (
                 <div key={i} className={cn('flex bubble-in', b.from === 'patient' ? 'justify-start' : 'justify-end')}>
                   <div
                     className={cn(
                       'max-w-[85%] md:max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm leading-6 whitespace-pre-line shadow-sm',
                       b.from === 'patient'
-                        ? 'bg-[#5B2A86] text-white rounded-bl-md'
+                        ? 'bg-[#0284C7] text-white rounded-bl-md'
                         : 'bg-white border text-foreground rounded-br-md',
                       b.kind === 'success' ? 'border-emerald-300 bg-emerald-50' : '',
                       b.kind === 'warn' ? 'border-rose-300 bg-rose-50' : ''

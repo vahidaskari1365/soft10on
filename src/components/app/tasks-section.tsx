@@ -111,7 +111,7 @@ export function TasksSection() {
                     {t.patient ? (
                       <Pill
                         label={`بیمار: ${t.patient.firstName} ${t.patient.lastName}`}
-                        color="bg-[#F7EFDA] text-[#7a5d14] border-transparent"
+                        color="bg-[#F6EFE3] text-[#7C6434] border-transparent"
                       />
                     ) : null}
                   </div>

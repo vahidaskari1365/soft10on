@@ -130,7 +130,7 @@ export function PortalSection({ userName }: { userName: string }) {
         <TabsList className="rounded-xl bg-secondary/60 h-11">
           <TabsTrigger value="appts" className="rounded-lg">نوبت‌های من</TabsTrigger>
           <TabsTrigger value="book" className="rounded-lg">
-            <Sparkles className="h-3.5 w-3.5 ml-1 text-[#C9A227]" /> رزرو با شینا
+            <Sparkles className="h-3.5 w-3.5 ml-1 text-[#B08D57]" /> رزرو با شینا
           </TabsTrigger>
           <TabsTrigger value="payments" className="rounded-lg">پرداخت‌های من</TabsTrigger>
           <TabsTrigger value="profile" className="rounded-lg">پروفایل من</TabsTrigger>

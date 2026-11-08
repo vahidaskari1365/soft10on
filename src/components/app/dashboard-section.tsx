@@ -12,10 +12,22 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   PieChart, Pie, Cell,
 } from 'recharts'
-import { TrendingUp, CalendarCheck, Wallet, AlertTriangle, Package, Clock, Bot, Inbox } from 'lucide-react'
+import { TrendingUp, CalendarCheck, Wallet, AlertTriangle, Package, Clock, Bot, Inbox, CalendarDays, Users, Building2, UserCog, ArrowLeft } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
-const PIE_COLORS = ['#5B2A86', '#C9A227', '#2A9D8F', '#E76F51', '#8D80AB', '#4A2A66']
+const PIE_COLORS = ['#0284C7', '#B08D57', '#0D9488', '#EA580C', '#94A3B8', '#075985']
+
+/** کاشی‌های میان‌بر داشبورد — کلیک روی هر آیکن، مستقیم به همان بخش می‌رود */
+const QUICK: { key: string; label: string; icon: typeof CalendarDays; chip: string }[] = [
+  { key: 'appointments', label: 'نوبت‌ها و تقویم', icon: CalendarDays, chip: 'bg-sky-50 text-sky-600' },
+  { key: 'tasks', label: 'کارتابل عملیات', icon: Inbox, chip: 'bg-amber-50 text-amber-600' },
+  { key: 'patients', label: 'بیماران (CRM)', icon: Users, chip: 'bg-teal-50 text-teal-600' },
+  { key: 'finance', label: 'مالی و انبار', icon: Wallet, chip: 'bg-[#F6EFE3] text-[#8C6F3F]' },
+  { key: 'branches', label: 'مدیریت شعب', icon: Building2, chip: 'bg-slate-100 text-slate-600' },
+  { key: 'staff', label: 'پرسنل و دسترسی‌ها', icon: UserCog, chip: 'bg-cyan-50 text-cyan-600' },
+  { key: 'agent', label: 'دستیار هوشمند', icon: Bot, chip: 'bg-linear-to-tl from-sky-500 to-teal-500 text-white' },
+]
 
 interface DashData {
   todayAppts: Appointment[]
@@ -35,7 +47,7 @@ interface DashData {
   }
 }
 
-export function DashboardSection({ onNavigate }: { onNavigate: (key: string) => void }) {
+export function DashboardSection({ onNavigate, quickKeys = [] }: { onNavigate: (key: string) => void; quickKeys?: string[] }) {
   const [data, setData] = useState<DashData | null>(null)
   const [tasks, setTasks] = useState<TaskItem[]>([])
 
@@ -67,10 +79,32 @@ export function DashboardSection({ onNavigate }: { onNavigate: (key: string) => 
   return (
     <div className="space-y-5">
       <SectionHeader title="داشبورد مدیر" subtitle="تصویر لحظه‌ای از عملیات کلینیک — بدون پیگیری تکی‌تکی افراد">
-        <Button size="sm" variant="outline" className="rounded-xl" onClick={() => onNavigate('assistant')}>
-          <Bot className="h-4 w-4 ml-1" /> دستیار بیمار
+        <Button size="sm" variant="outline" className="rounded-xl border-sky-200 text-sky-700 hover:bg-sky-50" onClick={() => onNavigate('agent')}>
+          <Bot className="h-4 w-4 ml-1" /> دستیار هوشمند
         </Button>
       </SectionHeader>
+
+      {/* کاشی‌های میان‌بر — کلیک روی آیکن = پرش به همان بخش */}
+      {quickKeys.length > 0 ? (
+        <div className="grid grid-cols-4 md:grid-cols-7 gap-2.5">
+          {QUICK.filter((q) => quickKeys.includes(q.key)).map((q) => {
+            const Icon = q.icon
+            return (
+              <button
+                key={q.key}
+                onClick={() => onNavigate(q.key)}
+                aria-label={`رفتن به ${q.label}`}
+                className="group flex flex-col items-center gap-2 rounded-2xl border bg-card px-2 py-3.5 card-hover outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+              >
+                <span className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl transition-transform group-hover:scale-110', q.chip)}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="text-[10.5px] font-medium text-foreground/80 leading-4 text-center">{q.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -85,6 +119,7 @@ export function DashboardSection({ onNavigate }: { onNavigate: (key: string) => 
           }
           tone="purple"
           icon={<Wallet className="h-5 w-5" />}
+          onClick={() => onNavigate('finance')}
         />
         <StatCard
           title="سود خالص این ماه"
@@ -92,12 +127,14 @@ export function DashboardSection({ onNavigate }: { onNavigate: (key: string) => 
           hint="پس از کارانه، هزینه‌ها و بهای کالا"
           tone="gold"
           icon={<TrendingUp className="h-5 w-5" />}
+          onClick={() => onNavigate('finance')}
         />
         <StatCard
           title="نوبت‌های امروز"
           value={`${faDigits(kpis.todayCount)} نوبت`}
           hint={`${faDigits(doneToday)} انجام‌شده · ${faDigits(kpis.pendingCount)} در انتظار تأیید`}
           icon={<CalendarCheck className="h-5 w-5" />}
+          onClick={() => onNavigate('appointments')}
         />
         <StatCard
           title="کارهای نیازمند توجه"
@@ -105,6 +142,7 @@ export function DashboardSection({ onNavigate }: { onNavigate: (key: string) => 
           hint={kpis.overdueTasks > 0 ? `${faDigits(kpis.overdueTasks)} کار سررسید گذشته!` : 'همه‌چیز سر وقت است'}
           tone={kpis.overdueTasks > 0 ? 'red' : 'green'}
           icon={<Inbox className="h-5 w-5" />}
+          onClick={() => onNavigate('tasks')}
         />
       </div>
 
@@ -133,17 +171,17 @@ export function DashboardSection({ onNavigate }: { onNavigate: (key: string) => 
             <div dir="ltr" className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee7db" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ECECF0" />
                   <XAxis dataKey="label" tick={{ fontSize: 11, fontFamily: 'inherit' }} interval={0} angle={-35} textAnchor="end" height={50} />
                   <YAxis tickFormatter={millionsShort} tick={{ fontSize: 11 }} width={44} />
                   <Tooltip
                     formatter={(v: number, name: string) => [formatToman(v), name]}
-                    contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #e7e1d5', direction: 'rtl' }}
+                    contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #E6E8EC', direction: 'rtl' }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12, fontFamily: 'inherit' }} />
-                  <Bar dataKey="revenue" name="درآمد" fill="#5B2A86" radius={[6, 6, 0, 0]} maxBarSize={26} />
-                  <Bar dataKey="totalExpenses" name="هزینه‌ها" fill="#C9A227" radius={[6, 6, 0, 0]} maxBarSize={26} />
-                  <Line type="monotone" dataKey="netProfit" name="سود خالص" stroke="#2A9D8F" strokeWidth={2.5} dot={{ r: 3 }} />
+                  <Bar dataKey="revenue" name="درآمد" fill="#0284C7" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                  <Bar dataKey="totalExpenses" name="هزینه‌ها" fill="#B08D57" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                  <Line type="monotone" dataKey="netProfit" name="سود خالص" stroke="#0D9488" strokeWidth={2.5} dot={{ r: 3 }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -165,7 +203,7 @@ export function DashboardSection({ onNavigate }: { onNavigate: (key: string) => 
                   </Pie>
                   <Tooltip
                     formatter={(v: number, name: string) => [formatToman(v), name]}
-                    contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #e7e1d5', direction: 'rtl' }}
+                    contentStyle={{ fontFamily: 'inherit', borderRadius: 12, border: '1px solid #E6E8EC', direction: 'rtl' }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -187,8 +225,9 @@ export function DashboardSection({ onNavigate }: { onNavigate: (key: string) => 
         <Card className="rounded-2xl">
           <CardHeader className="pb-2 flex-row items-center justify-between">
             <CardTitle className="text-base">امروز در کلینیک</CardTitle>
-            <Button size="sm" variant="ghost" className="text-xs rounded-lg" onClick={() => onNavigate('appointments')}>
+            <Button size="sm" variant="ghost" className="text-xs rounded-lg text-sky-700 hover:bg-sky-50" onClick={() => onNavigate('appointments')}>
               مشاهده تقویم
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
             </Button>
           </CardHeader>
           <CardContent className="space-y-2 max-h-[340px] overflow-y-auto scroll-thin">
@@ -220,8 +259,9 @@ export function DashboardSection({ onNavigate }: { onNavigate: (key: string) => 
         <Card className="rounded-2xl">
           <CardHeader className="pb-2 flex-row items-center justify-between">
             <CardTitle className="text-base">کارهای نیازمند توجه</CardTitle>
-            <Button size="sm" variant="ghost" className="text-xs rounded-lg" onClick={() => onNavigate('tasks')}>
+            <Button size="sm" variant="ghost" className="text-xs rounded-lg text-sky-700 hover:bg-sky-50" onClick={() => onNavigate('tasks')}>
               کارتابل
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
             </Button>
           </CardHeader>
           <CardContent className="space-y-2 max-h-[340px] overflow-y-auto scroll-thin">

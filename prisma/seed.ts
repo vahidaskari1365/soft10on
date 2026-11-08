@@ -90,9 +90,9 @@ async function main() {
   const branches = [brMain, brValiasr, brKaraj]
 
   // ---------- پزشکان (هر پزشک متعلق به یک شعبه) ----------
-  const drSara = await db.doctor.create({ data: { name: 'دکتر سارا احمدی', specialty: 'ترمیم و زیبایی', commissionRate: 0.4, color: '#5B2A86', branchId: brValiasr.id } })
-  const drAmir = await db.doctor.create({ data: { name: 'دکتر امیر رضایی', specialty: 'ایمپلنت و جراحی', commissionRate: 0.45, color: '#2A9D8F', branchId: brKaraj.id } })
-  const drNegin = await db.doctor.create({ data: { name: 'دکتر نگین موسوی', specialty: 'دندان‌پزشکی عمومی و اطفال', commissionRate: 0.35, color: '#C9A227', branchId: brMain.id } })
+  const drSara = await db.doctor.create({ data: { name: 'دکتر سارا احمدی', specialty: 'ترمیم و زیبایی', commissionRate: 0.4, color: '#0284C7', branchId: brValiasr.id } })
+  const drAmir = await db.doctor.create({ data: { name: 'دکتر امیر رضایی', specialty: 'ایمپلنت و جراحی', commissionRate: 0.45, color: '#0D9488', branchId: brKaraj.id } })
+  const drNegin = await db.doctor.create({ data: { name: 'دکتر نگین موسوی', specialty: 'دندان‌پزشکی عمومی و اطفال', commissionRate: 0.35, color: '#B08D57', branchId: brMain.id } })
   const doctors = [drSara, drAmir, drNegin]
   const doctorBranch = new Map([[drSara.id, brValiasr.id], [drAmir.id, brKaraj.id], [drNegin.id, brMain.id]])
 

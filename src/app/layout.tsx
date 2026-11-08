@@ -15,9 +15,9 @@ const vazir = localFont({
 })
 
 export const metadata: Metadata = {
-  title: 'سینا — سیستم‌عامل هوشمند کلینیک دندان‌پزشکی',
-  description: 'پروتوتایپ دموی سیستم‌عامل هوشمند کلینیک: دستیار بیمار، تقویم نوبت‌ها، کارتابل، CRM بیمار و مالی و انبار با گزارش شمسی',
-  icons: { icon: '/sina-icon.svg' },
+  title: '10on — سامانه هوشمند کلینیک دندان‌پزشکی',
+  description: '10on؛ لبخند شما، سرمایه ماست. سامانه یکپارچه کلینیک: نوبت‌دهی، دستیارهای هوشمند، CRM بیمار، مالی و انبار با تقویم شمسی و مدیریت چند شعبه',
+  icons: { icon: '/10on-icon.svg' },
 }
 
 export const viewport: Viewport = {

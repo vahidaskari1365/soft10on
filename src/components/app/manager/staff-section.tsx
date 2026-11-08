@@ -15,7 +15,7 @@ import { ROLE_LABEL } from '@/lib/format'
 import { UserCog, Plus, KeyRound, Power, ShieldCheck, Stethoscope, Headset, UserRound, Loader2 } from 'lucide-react'
 
 const ROLE_ICON: Record<string, typeof UserCog> = { ADMIN: ShieldCheck, DOCTOR: Stethoscope, RECEPTIONIST: Headset, PATIENT: UserRound }
-const ROLE_COLOR: Record<string, string> = { ADMIN: '#5B2A86', DOCTOR: '#C9A227', RECEPTIONIST: '#2A9D8F', PATIENT: '#E76F51' }
+const ROLE_COLOR: Record<string, string> = { ADMIN: '#0284C7', DOCTOR: '#B08D57', RECEPTIONIST: '#0D9488', PATIENT: '#EA580C' }
 
 type FormState = {
   fullName: string
@@ -145,7 +145,7 @@ export function StaffSection() {
                       <TableRow key={u.id} className={u.active ? '' : 'opacity-60'}>
                         <TableCell>
                           <div className="flex items-center gap-2.5">
-                            <Avatar name={u.fullName} color={ROLE_COLOR[u.role] ?? '#5B2A86'} size={32} />
+                            <Avatar name={u.fullName} color={ROLE_COLOR[u.role] ?? '#0284C7'} size={32} />
                             <div>
                               <div className="text-sm font-semibold">{u.fullName}</div>
                               <div className="text-[11px] text-muted-foreground" dir="ltr">{u.username}</div>

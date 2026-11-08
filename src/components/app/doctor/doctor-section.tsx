@@ -52,7 +52,7 @@ export function DoctorSection() {
         title={`تابلوی ${data.doctor.name}`}
         subtitle={`${data.doctor.specialty}${data.doctor.branch ? ` · ${data.doctor.branch}` : ''}`}
       >
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#C9A227] bg-[#F7EFDA] text-[#7a5d14] px-3 py-1 text-[11px] font-semibold">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#B08D57] bg-[#F6EFE3] text-[#7C6434] px-3 py-1 text-[11px] font-semibold">
           <BadgePercent className="h-3.5 w-3.5" />
           کارانه: {faDigits(Math.round((data.thisMonth.rate ?? 0) * 100))}٪
         </span>
@@ -202,13 +202,13 @@ export function DoctorSection() {
               <div className="h-72" dir="ltr">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={[...data.series].reverse()} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E8E2F0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E0F2FE" />
                     <XAxis dataKey="label" tick={{ fontSize: 11, fontFamily: 'Vazirmatn' }} reversed />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => millionsShort(Number(v))} width={45} orientation="right" />
                     <Tooltip contentStyle={{ fontFamily: 'Vazirmatn', fontSize: 12, borderRadius: 12, direction: 'rtl' }} />
                     <Legend formatter={(v) => (v === 'commission' ? 'کارانه من' : 'درآمد شعبه')} wrapperStyle={{ fontFamily: 'Vazirmatn', fontSize: 12 }} />
-                    <Bar dataKey="revenue" fill="#E4D9F2" radius={[6, 6, 0, 0]} name="revenue" />
-                    <Line type="monotone" dataKey="commission" stroke="#C9A227" strokeWidth={2.5} dot={false} name="commission" />
+                    <Bar dataKey="revenue" fill="#BAE6FD" radius={[6, 6, 0, 0]} name="revenue" />
+                    <Line type="monotone" dataKey="commission" stroke="#B08D57" strokeWidth={2.5} dot={false} name="commission" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
