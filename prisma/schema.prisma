@@ -7,13 +7,62 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------- سازمانی ----------
+
+model Branch {
+  id         String   @id @default(cuid())
+  code       String   @unique // SAADAT | VALIASR | KARAJ
+  name       String   // شعبه مرکزی (سعادت‌آباد)
+  city       String
+  address    String
+  phone      String
+  openHour   Int      @default(9) // ساعت شروع
+  closeHour  Int      @default(19) // ساعت پایان
+  thuCloseHour Int?   // ساعت پایان پنجشنبه (اختیاری)
+  closedFri  Boolean  @default(true)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  users      User[]
+  doctors    Doctor[]
+  appointments Appointment[]
+  tasks      Task[]
+  products   Product[]
+  purchases  Purchase[]
+  expenses   Expense[]
+  productSales ProductSale[]
+}
+
+model User {
+  id          String    @id @default(cuid())
+  username    String    @unique
+  password    String // scrypt: salt:hash
+  fullName    String
+  role        String // ADMIN | DOCTOR | RECEPTIONIST | PATIENT
+  phone       String?
+  email       String?
+  branchId    String?
+  branch      Branch?   @relation(fields: [branchId], references: [id])
+  doctorId    String?   @unique
+  doctor      Doctor?   @relation(fields: [doctorId], references: [id])
+  patientId   String?   @unique
+  patient     Patient?  @relation(fields: [patientId], references: [id])
+  active      Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+// ---------- عملیاتی ----------
+
 model Doctor {
   id             String       @id @default(cuid())
   name           String
   specialty      String
   commissionRate Float        // سهم پزشک از هر خدمت (0.4 = ۴۰٪)
   color          String       @default("#5B2A86")
+  branchId       String?
+  branch         Branch?      @relation(fields: [branchId], references: [id])
   active         Boolean      @default(true)
+  user           User?
   appointments   Appointment[]
 }
 
@@ -39,10 +88,13 @@ model Patient {
   appointments       Appointment[]
   tasks              Task[]
   productSales       ProductSale[]
+  user               User?
 }
 
 model Appointment {
   id        String   @id @default(cuid())
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
   patientId String
   patient   Patient  @relation(fields: [patientId], references: [id])
   doctorId  String
@@ -64,6 +116,8 @@ model Appointment {
 
 model Task {
   id           String     @id @default(cuid())
+  branchId     String?
+  branch       Branch?    @relation(fields: [branchId], references: [id])
   title        String
   description  String?
   assigneeRole String     @default("RECEPTIONIST") // RECEPTIONIST | DOCTOR | MANAGER
@@ -80,8 +134,12 @@ model Task {
   doneAt       DateTime?
 }
 
+// ---------- مالی و انبار ----------
+
 model Product {
   id            String        @id @default(cuid())
+  branchId      String?
+  branch        Branch?       @relation(fields: [branchId], references: [id])
   name          String
   category      String
   unit          String        @default("عدد")
@@ -101,6 +159,8 @@ model SystemMeta {
 
 model Purchase {
   id        String         @id @default(cuid())
+  branchId  String?
+  branch    Branch?        @relation(fields: [branchId], references: [id])
   date      DateTime
   supplier  String
   total     Float
@@ -119,6 +179,8 @@ model PurchaseItem {
 
 model ProductSale {
   id        String   @id @default(cuid())
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
   date      DateTime
   patientId String?
   patient   Patient? @relation(fields: [patientId], references: [id])
@@ -131,6 +193,8 @@ model ProductSale {
 
 model Expense {
   id          String   @id @default(cuid())
+  branchId    String?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
   date        DateTime
   category    String   // RENT | SALARY | UTILITIES | MARKETING | EQUIPMENT | OTHER
   amount      Float

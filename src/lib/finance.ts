@@ -17,22 +17,23 @@ export type MonthRow = {
   cancelled: number
 }
 
-/** سری ۱۲ ماه اخیر: درآمد خدمات + فروش کالا، کارانه، هزینه‌ها، سود خالص */
-export async function monthlySeries(n = 12): Promise<MonthRow[]> {
+/** سری ۱۲ ماه اخیر: درآمد خدمات + فروش کالا، کارانه، هزینه‌ها، سود خالص (فیلتر شعبه اختیاری) */
+export async function monthlySeries(n = 12, branchId?: string | null): Promise<MonthRow[]> {
   const keys = lastNMonthKeys(n)
   const start = monthKeyStart(keys[0])
   const end = monthKeyEnd(keys[keys.length - 1])
+  const br = branchId ? { branchId } : {}
 
   const [appts, sales, expenses, products, doctors] = await Promise.all([
     db.appointment.findMany({
-      where: { start: { gte: start, lt: end } },
+      where: { start: { gte: start, lt: end }, ...br },
       select: { start: true, status: true, price: true, service: { select: { category: true } }, doctor: { select: { commissionRate: true } } },
     }),
     db.productSale.findMany({
-      where: { date: { gte: start, lt: end } },
+      where: { date: { gte: start, lt: end }, ...br },
       select: { date: true, total: true, qty: true, product: { select: { purchasePrice: true } } },
     }),
-    db.expense.findMany({ where: { date: { gte: start, lt: end } }, select: { date: true, category: true, amount: true } }),
+    db.expense.findMany({ where: { date: { gte: start, lt: end }, ...br }, select: { date: true, category: true, amount: true } }),
     db.product.findMany({ select: { id: true, purchasePrice: true } }),
     db.doctor.findMany({ select: { commissionRate: true } }),
   ])
@@ -83,16 +84,17 @@ export async function monthlySeries(n = 12): Promise<MonthRow[]> {
   return keys.map((k) => rows.get(k)!)
 }
 
-/** تفکیک ماه جاری برای دونات */
-export async function monthComposition(key: string) {
+/** تفکیک ماه جاری برای دونات (فیلتر شعبه اختیاری) */
+export async function monthComposition(key: string, branchId?: string | null) {
   const start = monthKeyStart(key)
   const end = monthKeyEnd(key)
+  const br = branchId ? { branchId } : {}
   const [appts, productTotal] = await Promise.all([
     db.appointment.findMany({
-      where: { start: { gte: start, lt: end }, status: 'DONE' },
+      where: { start: { gte: start, lt: end }, status: 'DONE', ...br },
       select: { price: true, service: { select: { category: true } } },
     }),
-    db.productSale.aggregate({ where: { date: { gte: start, lt: end } }, _sum: { total: true } }),
+    db.productSale.aggregate({ where: { date: { gte: start, lt: end }, ...br }, _sum: { total: true } }),
   ])
   const byCat = new Map<string, number>()
   for (const a of appts) {

@@ -145,3 +145,111 @@ export interface AssistantResponse {
   ctx: Record<string, unknown>
   result?: { appointmentId: string; taskId: string }
 }
+
+// ---------- نقش‌ها و سشن ----------
+
+export interface SessionUser {
+  id: string
+  username: string
+  fullName: string
+  role: string // ADMIN | DOCTOR | RECEPTIONIST | PATIENT
+  phone: string | null
+  email: string | null
+  branchId: string | null
+  branch: { id: string; name: string; code: string; city: string } | null
+  doctorId: string | null
+  doctorName: string | null
+  patientId: string | null
+  patientName: string | null
+}
+
+export interface BranchInfo {
+  id: string
+  code: string
+  name: string
+  city: string
+  address: string
+  phone: string
+  openHour: number
+  closeHour: number
+  thuCloseHour: number | null
+  closedFri: boolean
+  isActive: boolean
+  doctorCount: number
+  staffCount: number
+  doctors: { id: string; name: string; specialty: string; color: string }[]
+  appointmentsMonth: number
+  revenueMonth: number
+  revenueMonthFa: string
+  expensesMonth: number
+  todayPending: number
+}
+
+export interface StaffUser {
+  id: string
+  username: string
+  fullName: string
+  role: string
+  roleFa: string
+  phone: string | null
+  email: string | null
+  active: boolean
+  lastLoginAt: string | null
+  branch: { id: string; name: string } | null
+  doctorName: string | null
+  patientName: string | null
+}
+
+export interface AgentStepUI {
+  title: string
+  ok: boolean
+  result: unknown
+}
+
+export interface AgentResponse {
+  answer: string
+  steps: AgentStepUI[]
+  aiUsed: boolean
+}
+
+// ---------- پزشک ----------
+
+export interface DoctorOverview {
+  doctor: { name: string; specialty: string; branch: string | null; branchCity: string | null }
+  today: Appointment[]
+  upcoming: Appointment[]
+  myPatients: {
+    id: string
+    name: string
+    phone: string
+    incompleteTreatment: boolean
+    visits: number
+    noShow: number
+    spentFa: string
+    lastVisit: string | null
+  }[]
+  series: { key: string; label: string; revenue: number; commission: number; done: number }[]
+  thisMonth: { done: number; revenueFa: string; commissionFa: string; rate: number }
+  tasks: TaskItem[]
+}
+
+// ---------- پرتال بیمار ----------
+
+export interface PortalOverview {
+  profile: {
+    patientId: string
+    firstName: string
+    lastName: string
+    phone: string
+    nationalId: string | null
+    birthYear: number | null
+    incompleteTreatment: boolean
+    email: string | null
+    since: string
+  }
+  upcoming: Appointment[]
+  past: Appointment[]
+  sales: ProductSale[]
+  totals: { paidFa: string; remainingFa: string; visits: number }
+  branches: { id: string; name: string; city: string; address: string; phone: string; openHour: number; closeHour: number }[]
+}

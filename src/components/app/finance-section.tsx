@@ -62,12 +62,19 @@ interface FinanceData {
 
 function ReportTab() {
   const [month, setMonth] = useState<string>(jMonthKey(new Date()))
+  const [branch, setBranch] = useState<string>('all')
+  const [branchList, setBranchList] = useState<{ id: string; name: string }[]>([])
   const [data, setData] = useState<FinanceData | null>(null)
 
   useEffect(() => {
+    fetch('/api/branches').then((r) => r.json()).then((d) => setBranchList(d.branches ?? [])).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     setData(null)
-    fetch(`/api/finance?month=${month}`).then((r) => r.json()).then(setData).catch(() => {})
-  }, [month])
+    const b = branch === 'all' ? '' : `&branch=${branch}`
+    fetch(`/api/finance?month=${month}${b}`).then((r) => r.json()).then(setData).catch(() => {})
+  }, [month, branch])
 
   const months = lastNMonthKeys(12).reverse()
 
@@ -94,6 +101,16 @@ function ReportTab() {
           <SelectContent>
             {months.map((m) => (
               <SelectItem key={m} value={m}>{keyToLabel(m)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">شعبه:</span>
+        <Select value={branch} onValueChange={setBranch}>
+          <SelectTrigger className="w-52 rounded-xl"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">همه‌ی شعب</SelectItem>
+            {branchList.map((b) => (
+              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { faDigits, formatJDate, formatTime, formatDayRelative, weekdayName } from '@/lib/jalali'
 import { formatToman } from '@/lib/format'
+import { llmChat, extractJSON } from '@/lib/ai'
 
 type Chip = { label: string; payload: { action: string; [k: string]: unknown } }
 type TraceStep = { key: string; label: string; state: 'done' | 'active' | 'pending' }
@@ -81,11 +82,68 @@ function detectIntent(text: string): string {
   const t = text.trim()
   if (/(نوبت|وقت|ساعت خالی|رزرو|ویزیت)/.test(t)) return 'booking'
   if (/(قیمت|تعرفه|هزینه|چند|تومان)/.test(t)) return 'prices'
-  if (/(آدرس|کجا|موقعیت|پارک)/.test(t)) return 'address'
+  if (/(آدرس|کجا|موقعیت|پارک|شعبه)/.test(t)) return 'address'
   if (/(ساعت کار|باز|تعطیل|چند شنبه)/.test(t)) return 'hours'
   if (/(سلام|درود|خسته|وقت بخیر)/.test(t)) return 'greet'
   if (/(ممنون|سپاس|مرسی|خداحافظ|بای)/.test(t)) return 'thanks'
   return 'unknown'
+}
+
+// ---------- LLM: فکت‌های کلینیک + درک پیام آزاد ----------
+const faHour = (h: number) => faDigits(String(h))
+
+async function clinicFacts() {
+  const [branches, services] = await Promise.all([
+    db.branch.findMany({ where: { isActive: true } }),
+    db.service.findMany({ orderBy: { price: 'asc' } }),
+  ])
+  return {
+    branches: branches.map((b) => ({
+      name: b.name,
+      city: b.city,
+      address: b.address,
+      phone: b.phone,
+      hours: `${faHour(b.openHour)} تا ${faHour(b.closeHour)}`,
+      thuHours: `${faHour(b.openHour)} تا ${faHour(b.thuCloseHour ?? 13)}`,
+    })),
+    services: services.map((s) => `${s.name}: ${formatToman(s.price)}`),
+  }
+}
+
+async function llmIntent(
+  text: string,
+  facts: Awaited<ReturnType<typeof clinicFacts>>,
+): Promise<{ intent: string; reply?: string } | null> {
+  try {
+    const raw = await llmChat([
+      {
+        role: 'assistant',
+        content: `شما «شینا» هستید؛ دستیار بیمار کلینیک دندان‌پزشکی «لبخند مهر» با ۳ شعبه. فقط با اطلاعات زیر پاسخ بدهید؛ اطلاعات از خودتان نسازید.
+
+# اطلاعات کلینیک
+شعب:
+${facts.branches.map((b) => `- ${b.name} (${b.city}) — ${b.address} — ${b.phone} — ساعات: شنبه تا چهارشنبه ${b.hours}، پنجشنبه ${b.thuHours}، جمعه تعطیل`).join('\n')}
+
+خدمات و تعرفه‌ها:
+${facts.services.join(' | ')}
+
+# وظیفه
+پیام بیمار را تحلیل کنید و فقط این JSON را برگردانید:
+{"intent":"greet|booking|prices|address|hours|thanks|free","reply":"..."}
+
+- اگر پیام درباره‌ی نوبت/رزرو است → intent=booking و reply خالی
+- اگر درباره تعرفه است → prices، آدرس/شعبه → address، ساعت کار → hours، سلام → greet، تشکر → thanks
+- برای سوال آزاد دیگر (مثلاً «درد دندان چیکار کنم؟» یا «بیمه می‌پذیرید؟») → intent=free و پاسخ کامل فارسی محترمانه در reply بر اساس اطلاعات بالا بنویسید. برای سوال پزشکی، توصیه عمومی بدهید و تشویق به مراجعه کنید؛ تشخیص قطعی ندهید.`,
+      },
+      { role: 'user', content: text },
+    ])
+    if (!raw) return null
+    const parsed = extractJSON<{ intent?: string; reply?: string }>(raw)
+    if (!parsed?.intent) return null
+    return { intent: parsed.intent, reply: parsed.reply }
+  } catch {
+    return null
+  }
 }
 
 export async function POST(request: Request) {
@@ -225,6 +283,7 @@ export async function POST(request: Request) {
 
     const appt = await db.appointment.create({
       data: {
+        branchId: doctor!.branchId,
         patientId,
         doctorId: doctor!.id,
         serviceId: svc.id,
@@ -239,6 +298,7 @@ export async function POST(request: Request) {
 
     const task = await db.task.create({
       data: {
+        branchId: doctor!.branchId,
         title: `تأیید نوبت دستیار — ${svc.name}`,
         description: `بیمار: ${appt.patient.firstName} ${appt.patient.lastName} · ${summary} · ثبت‌شده خودکار توسط دستیار بیمار`,
         assigneeRole: 'RECEPTIONIST',
@@ -280,18 +340,40 @@ export async function POST(request: Request) {
   }
 
   if (action === 'text') {
-    const intent = detectIntent(text ?? '')
-    if (intent === 'address') {
+    // ---------- درک هوشمند پیام با LLM (با fallback قانونی) ----------
+    const facts = await clinicFacts()
+    const llm = await llmIntent(text ?? '', facts)
+    const intent = llm?.intent ?? detectIntent(text ?? '')
+
+    if (llm?.intent === 'free' && llm.reply) {
       return NextResponse.json({
-        messages: [{ text: '📍 تهران، سعادت‌آباد، بلوار دریا، پلاک ۴۲، طبقه دوم\n☎️ ۰۲۱-۲۲۳۳۴۴۵۵\n\nساعت کاری: شنبه تا چهارشنبه ۹ تا ۱۹، پنجشنبه ۹ تا ۱۳' }] as BotMessage[],
-        chips: [{ label: '🗓 نوبت می‌خوام', payload: { action: 'services' } }] as Chip[],
+        messages: [{ text: llm.reply }] as BotMessage[],
+        chips: [
+          { label: '🗓 نوبت می‌خوام', payload: { action: 'services' } },
+          { label: '💰 تعرفه‌ها', payload: { action: 'prices' } },
+          { label: '📍 شعب و آدرس‌ها', payload: { action: 'text', text: 'آدرس شعب کجاست؟' } },
+        ] as Chip[],
+        trace: FULL_TRACE.map((s, i) => ({ ...s, state: i === 0 ? 'done' : 'pending' })),
+        ctx,
+      })
+    }
+
+    if (intent === 'address') {
+      const branchLines = facts.branches.map((b) => `📍 ${b.name} — ${b.city}\n   ${b.address}\n   ☎️ ${b.phone} · ساعت کاری: ${b.hours}`).join('\n\n')
+      return NextResponse.json({
+        messages: [{ text: `سه شعبه‌ی فعال ما:\n\n${branchLines}\n\nهر سه شعبه جمعه‌ها تعطیل هستند. 🌸` }] as BotMessage[],
+        chips: [
+          { label: '🗓 نوبت می‌خوام', payload: { action: 'services' } },
+          { label: '💰 تعرفه‌ی خدمات', payload: { action: 'prices' } },
+        ] as Chip[],
         trace: FULL_TRACE.map((s, i) => ({ ...s, state: i === 0 ? 'done' : 'pending' })),
         ctx,
       })
     }
     if (intent === 'hours') {
+      const hoursLines = facts.branches.map((b) => `🕐 ${b.name}: شنبه تا چهارشنبه ${b.hours} — پنجشنبه ${b.thuHours}`).join('\n')
       return NextResponse.json({
-        messages: [{ text: '🕐 شنبه تا چهارشنبه ۹ تا ۱۹ — پنجشنبه ۹ تا ۱۳ — جمعه‌ها تعطیل' }] as BotMessage[],
+        messages: [{ text: `${hoursLines}\n\nجمعه‌ها در همه‌ی شعب تعطیل هستیم.` }] as BotMessage[],
         chips: [{ label: '🔎 زمان‌های خالی', payload: { action: 'services' } }] as Chip[],
         trace: FULL_TRACE.map((s, i) => ({ ...s, state: i === 0 ? 'done' : 'pending' })),
         ctx,
@@ -307,11 +389,11 @@ export async function POST(request: Request) {
       })
     }
     return NextResponse.json({
-      messages: [{ text: 'من در ثبت نوبت، تعرفه‌ها و اطلاعاتی مثل آدرس و ساعت کاری کمکتان می‌کنم. کدام را می‌خواهید؟' }] as BotMessage[],
+      messages: [{ text: 'من شینا هستم؛ در ثبت نوبت، تعرفه‌ها و اطلاعاتی مثل آدرس و ساعت کاری شعب کمکتان می‌کنم. کدام را می‌خواهید؟' }] as BotMessage[],
       chips: [
         { label: '🗓 نوبت می‌خوام', payload: { action: 'services' } },
         { label: '💰 تعرفه‌ها', payload: { action: 'prices' } },
-        { label: '📍 آدرس', payload: { action: 'text', text: 'آدرس کلینیک کجاست؟' } },
+        { label: '📍 شعب و آدرس‌ها', payload: { action: 'text', text: 'آدرس شعب کجاست؟' } },
       ] as Chip[],
       trace: FULL_TRACE.map((s, i) => ({ ...s, state: i === 0 ? 'done' : 'pending' })),
       ctx,

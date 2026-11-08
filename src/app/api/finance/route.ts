@@ -11,14 +11,16 @@ export async function GET(request: Request) {
   const monthKey = valid ? raw! : lastNMonthKeys(1)[0]
   const start = monthKeyStart(monthKey)
   const end = monthKeyEnd(monthKey)
+  const branchId = searchParams.get('branch') || undefined
+  const br = branchId ? { branchId } : {}
 
   const [doneAppts, productSales, expenses] = await Promise.all([
     db.appointment.findMany({
-      where: { start: { gte: start, lt: end }, status: 'DONE' },
+      where: { start: { gte: start, lt: end }, status: 'DONE', ...br },
       select: { price: true, doctor: { select: { id: true, name: true, commissionRate: true } }, service: { select: { name: true, category: true } } },
     }),
-    db.productSale.findMany({ where: { date: { gte: start, lt: end } }, include: { product: true } }),
-    db.expense.findMany({ where: { date: { gte: start, lt: end } } }),
+    db.productSale.findMany({ where: { date: { gte: start, lt: end }, ...br }, include: { product: true } }),
+    db.expense.findMany({ where: { date: { gte: start, lt: end }, ...br } }),
   ])
 
   const revenueServices = doneAppts.reduce((s, a) => s + a.price, 0)
@@ -56,7 +58,7 @@ export async function GET(request: Request) {
     byDoctor.set(a.doctor.id, cur)
   }
 
-  const series = await monthlySeries(12)
+  const series = await monthlySeries(12, branchId)
   const revenue = revenueServices + revenueProducts
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0) + commission + cogs
 

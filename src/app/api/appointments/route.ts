@@ -59,8 +59,12 @@ export async function POST(request: Request) {
   const service = await db.service.findUnique({ where: { id: serviceId } })
   if (!service) return NextResponse.json({ error: 'خدمت یافت نشد' }, { status: 400 })
 
+  const doctor = await db.doctor.findUnique({ where: { id: doctorId } })
+  if (!doctor) return NextResponse.json({ error: 'پزشک یافت نشد' }, { status: 400 })
+
   const appt = await db.appointment.create({
     data: {
+      branchId: doctor.branchId,
       patientId: pid,
       doctorId,
       serviceId,

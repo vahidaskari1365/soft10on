@@ -24,7 +24,13 @@ const INITIAL_TRACE: TraceStep[] = [
   { key: 'cartable', label: 'ثبت در کارتابل منشی + یادآوری', state: 'pending' },
 ]
 
-export function AssistantSection({ onNavigate }: { onNavigate: (key: string) => void }) {
+export function AssistantSection({
+  onNavigate,
+  patient,
+}: {
+  onNavigate: (key: string) => void
+  patient?: { id: string; name: string; phone: string }
+}) {
   const [bubbles, setBubbles] = useState<Bubble[]>([])
   const [chips, setChips] = useState<Chip[]>([])
   const [trace, setTrace] = useState<TraceStep[]>(INITIAL_TRACE)
@@ -76,7 +82,11 @@ export function AssistantSection({ onNavigate }: { onNavigate: (key: string) => 
     const isBooking = c.payload.action === 'book' && c.payload.start
     setBubbles((b) => [...b, { from: 'patient', text: c.label }])
     setChips([])
-    send({ ...c.payload, name: c.payload.name ?? 'مینا کریمی', phone: c.payload.phone ?? '09121234567' }, isBooking ? null : null)
+    // اگر بیمار لاگین‌شده باشد، نوبت به پرونده‌ی خودش ثبت می‌شود؛ وگرنه هویت نمایشی
+    const identity = patient
+      ? { patientId: patient.id, name: patient.name, phone: patient.phone }
+      : { name: c.payload.name ?? 'مینا کریمی', phone: c.payload.phone ?? '09121234567' }
+    send({ ...c.payload, ...identity }, isBooking ? null : null)
   }
 
   const submitInput = () => {

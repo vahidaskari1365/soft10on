@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { jMonthKey, monthKeyStart, monthKeyEnd } from '../src/lib/jalali'
+import { hashPassword } from '../src/lib/password'
 
 const db = new PrismaClient()
 
@@ -31,7 +32,8 @@ function at(d: Date, h: number, m = 0) {
 async function main() {
   console.log(' seeding…')
 
-  // wipe
+  // wipe (ترتیب مهم: ابتدا جداول با رابطه)
+  await db.user.deleteMany()
   await db.expense.deleteMany()
   await db.productSale.deleteMany()
   await db.purchaseItem.deleteMany()
@@ -42,15 +44,59 @@ async function main() {
   await db.patient.deleteMany()
   await db.service.deleteMany()
   await db.doctor.deleteMany()
+  await db.branch.deleteMany()
   await db.systemMeta.deleteMany()
 
-  // ---------- doctors ----------
-  const drSara = await db.doctor.create({ data: { name: 'دکتر سارا احمدی', specialty: 'ترمیم و زیبایی', commissionRate: 0.4, color: '#5B2A86' } })
-  const drAmir = await db.doctor.create({ data: { name: 'دکتر امیر رضایی', specialty: 'ایمپلنت و جراحی', commissionRate: 0.45, color: '#2A9D8F' } })
-  const drNegin = await db.doctor.create({ data: { name: 'دکتر نگین موسوی', specialty: 'دندان‌پزشکی عمومی و اطفال', commissionRate: 0.35, color: '#C9A227' } })
-  const doctors = [drSara, drAmir, drNegin]
+  // ---------- شعب ----------
+  const brMain = await db.branch.create({
+    data: {
+      code: 'SAADAT',
+      name: 'شعبه مرکزی (سعادت‌آباد)',
+      city: 'تهران',
+      address: 'سعادت‌آباد، بلوار دریا، پلاک ۴۲، طبقه دوم',
+      phone: '۰۲۱-۲۲۳۳۴۴۵۵',
+      openHour: 9,
+      closeHour: 19,
+      thuCloseHour: 13,
+      closedFri: true,
+    },
+  })
+  const brValiasr = await db.branch.create({
+    data: {
+      code: 'VALIASR',
+      name: 'شعبه ولیعصر',
+      city: 'تهران',
+      address: 'میدان ونک، خیابان ولیعصر، برج آرمان، طبقه ۵',
+      phone: '۰۲۱-۸۸۹۹۷۷۶۶',
+      openHour: 10,
+      closeHour: 20,
+      thuCloseHour: 14,
+      closedFri: true,
+    },
+  })
+  const brKaraj = await db.branch.create({
+    data: {
+      code: 'KARAJ',
+      name: 'شعبه کرج (مهرشهر)',
+      city: 'کرج',
+      address: 'عظیمیه، میدان مهرشهر، بلوار طالبی، پلاک ۱۸',
+      phone: '۰۲۶-۳۴۴۴۵۵۶۶',
+      openHour: 9,
+      closeHour: 18,
+      thuCloseHour: 13,
+      closedFri: true,
+    },
+  })
+  const branches = [brMain, brValiasr, brKaraj]
 
-  // ---------- services ----------
+  // ---------- پزشکان (هر پزشک متعلق به یک شعبه) ----------
+  const drSara = await db.doctor.create({ data: { name: 'دکتر سارا احمدی', specialty: 'ترمیم و زیبایی', commissionRate: 0.4, color: '#5B2A86', branchId: brValiasr.id } })
+  const drAmir = await db.doctor.create({ data: { name: 'دکتر امیر رضایی', specialty: 'ایمپلنت و جراحی', commissionRate: 0.45, color: '#2A9D8F', branchId: brKaraj.id } })
+  const drNegin = await db.doctor.create({ data: { name: 'دکتر نگین موسوی', specialty: 'دندان‌پزشکی عمومی و اطفال', commissionRate: 0.35, color: '#C9A227', branchId: brMain.id } })
+  const doctors = [drSara, drAmir, drNegin]
+  const doctorBranch = new Map([[drSara.id, brValiasr.id], [drAmir.id, brKaraj.id], [drNegin.id, brMain.id]])
+
+  // ---------- خدمات ----------
   const svcData = [
     ['معاینه و مشاوره', 'تشخیص', 500_000, 20, 8],
     ['جرم‌گیری و بروساژ', 'پیشگیری', 1_800_000, 30, 7],
@@ -75,7 +121,7 @@ async function main() {
   const svcPool: typeof services = []
   for (const s of services) for (let i = 0; i < s.w; i++) svcPool.push(s)
 
-  // ---------- patients ----------
+  // ---------- بیماران ----------
   const patientData: [string, string, string, number | null, boolean][] = [
     ['مینا', 'کریمی', '09121234567', 1372, false],
     ['حسین', 'محمدی', '09351112233', 1358, true],
@@ -103,7 +149,7 @@ async function main() {
 
   const now = new Date()
 
-  // ---------- historical appointments (past ~370 days) ----------
+  // ---------- نوبت‌های تاریخی (~۳۷۰ روز) ----------
   const statuses = ['DONE', 'DONE', 'DONE', 'DONE', 'DONE', 'DONE', 'DONE', 'DONE', 'DONE', 'DONE', 'DONE', 'CANCELLED', 'NO_SHOW']
   const sources = ['WHATSAPP', 'WHATSAPP', 'WHATSAPP', 'PHONE', 'PHONE', 'WALKIN', 'WALKIN', 'PANEL', 'ASSISTANT']
   let apptCount = 0
@@ -135,6 +181,7 @@ async function main() {
       const isBig = svc.price >= 5_000_000
       await db.appointment.create({
         data: {
+          branchId: doctorBranch.get(doctor.id) ?? null,
           patientId: pat.id,
           doctorId: doctor.id,
           serviceId: svc.id,
@@ -151,7 +198,7 @@ async function main() {
     }
   }
 
-  // ---------- today & upcoming ----------
+  // ---------- امروز و آینده ----------
   const upcoming: { dayOffset: number; hour: number; minute: number; svcIdx: number; patIdx: number; docIdx: number; status: string; source: string }[] = [
     { dayOffset: 0, hour: 9, minute: 0, svcIdx: 0, patIdx: 2, docIdx: 2, status: 'DONE', source: 'WALKIN' },
     { dayOffset: 0, hour: 10, minute: 30, svcIdx: 3, patIdx: 4, docIdx: 0, status: 'CONFIRMED', source: 'WHATSAPP' },
@@ -179,6 +226,7 @@ async function main() {
     const isBig = svc.price >= 5_000_000
     await db.appointment.create({
       data: {
+        branchId: doctorBranch.get(doctors[u.docIdx].id) ?? null,
         patientId: patients[u.patIdx].id,
         doctorId: doctors[u.docIdx].id,
         serviceId: svc.id,
@@ -194,10 +242,11 @@ async function main() {
     apptCount++
   }
 
-  // ---------- tasks ----------
-  const t = (title: string, role: string, assignee: string, dueOffsetH: number, priority: string, status: string, opts: { patientIdx?: number; source?: string; desc?: string } = {}) =>
+  // ---------- کارتابل ----------
+  const t = (title: string, role: string, assignee: string, dueOffsetH: number, priority: string, status: string, opts: { patientIdx?: number; source?: string; desc?: string; branchId?: string | null } = {}) =>
     db.task.create({
       data: {
+        branchId: opts.branchId !== undefined ? opts.branchId : brMain.id,
         title,
         description: opts.desc,
         assigneeRole: role,
@@ -211,24 +260,24 @@ async function main() {
       },
     })
   await Promise.all([
-    t('یادآوری نوبت‌های فردا با پیامک', 'RECEPTIONIST', 'سمیرا (منشی)', 6, 'MEDIUM', 'OPEN', { source: 'SYSTEM', desc: 'ارسال خودکار یادآوری به ۷ بیمار فردا' }),
+    t('یادآوری نوبت‌های فردا با پیامک', 'RECEPTIONIST', 'سمیرا (منشی)', 6, 'MEDIUM', 'OPEN', { source: 'SYSTEM', desc: 'ارسال خودکار یادآوری به ۷ بیمار فردا — شعبه مرکزی' }),
     t('تأیید نوبت درخواستی از دستیار بیمار', 'RECEPTIONIST', 'سمیرا (منشی)', 4, 'HIGH', 'OPEN', { patientIdx: 12, source: 'ASSISTANT', desc: 'نوبت لمینت ساعت ۱۷:۳۰ امروز — نیازمند تأیید ظرفیت' }),
-    t('پیگیری پانورامای بیمار قبل از جراحی', 'DOCTOR', 'دکتر امیر رضایی', 26, 'HIGH', 'OPEN', { patientIdx: 3, source: 'DOCTOR', desc: 'رادیوگرافی ارسال نشده؛ تا فردا بررسی شود' }),
+    t('پیگیری پانورامای بیمار قبل از جراحی', 'DOCTOR', 'دکتر امیر رضایی', 26, 'HIGH', 'OPEN', { patientIdx: 3, source: 'DOCTOR', desc: 'رادیوگرافی ارسال نشده؛ تا فردا بررسی شود', branchId: brKaraj.id }),
     t('تماس با بیماران درمان نیمه‌کاره', 'RECEPTIONIST', 'سمیرا (منشی)', 50, 'HIGH', 'IN_PROGRESS', { source: 'ASSISTANT', desc: '۳ بیمار: حسین محمدی، نگار شریفی، کاوه امینی' }),
-    t('رسیدگی به شکایت تأخیر نوبت صبحگاهی', 'MANAGER', 'مدیر کلینیک', -20, 'URGENT', 'OPEN', { source: 'MANAGER', desc: 'بیمار بابت ۴۵ دقیقه تأخیر ناراضی است' }),
+    t('رسیدگی به شکایت تأخیر نوبت صبحگاهی', 'MANAGER', 'مدیر کلینیک', -20, 'URGENT', 'OPEN', { source: 'MANAGER', desc: 'بیمار بابت ۴۵ دقیقه تأخیر ناراضی است', branchId: null }),
     t('سفارش کامپوزیت و ژل فلوراید', 'RECEPTIONIST', 'سمیرا (منشی)', 72, 'MEDIUM', 'OPEN', { source: 'SYSTEM', desc: 'موجودی زیر حد هشدار: ژل فلوراید و باندینگ' }),
-    t('تسویه کارانه ماه جاری پزشکان', 'MANAGER', 'مدیر کلینیک', 200, 'MEDIUM', 'OPEN', { source: 'MANAGER' }),
+    t('تسویه کارانه ماه جاری پزشکان هر ۳ شعبه', 'MANAGER', 'مدیر کلینیک', 200, 'MEDIUM', 'OPEN', { source: 'MANAGER', branchId: null }),
     t('پیگیری استعلام بیمه بیمار', 'RECEPTIONIST', 'سمیرا (منشی)', 30, 'MEDIUM', 'BLOCKED', { patientIdx: 8, source: 'MANUAL', desc: 'منتظر پاسخ بیمه تکمیلی' }),
     t('دیجیتال‌سازی پرونده‌های کاغذی (دسته ۳)', 'RECEPTIONIST', 'پذیرش شب', 120, 'LOW', 'IN_PROGRESS', { source: 'MANAGER' }),
     t('یادآوری ویزیت شش‌ماهه بیماران قدیمی', 'RECEPTIONIST', 'سمیرا (منشی)', 110, 'LOW', 'OPEN', { source: 'SYSTEM' }),
-    t('تهیه گزارش مالی مهر برای حسابدار', 'MANAGER', 'مدیر کلینیک', -40, 'MEDIUM', 'DONE', { source: 'MANAGER' }),
+    t('تهیه گزارش مالی مهر برای حسابدار', 'MANAGER', 'مدیر کلینیک', -40, 'MEDIUM', 'DONE', { source: 'MANAGER', branchId: null }),
     t('جواب‌دهی نظرات اینستاگرام', 'RECEPTIONIST', 'سمیرا (منشی)', -10, 'LOW', 'DONE', { source: 'MANAGER' }),
     t('استریل ابزار اتاق ۲', 'RECEPTIONIST', 'پذیرش شب', 3, 'HIGH', 'DONE', { source: 'MANUAL' }),
-    t('بررسی نوبت‌های بدون بیعانه ماه آینده', 'MANAGER', 'مدیر کلینیک', 96, 'MEDIUM', 'OPEN', { source: 'SYSTEM' }),
-    t('سفارش مهر و کمیسیون جدید پذیرش', 'MANAGER', 'مدیر کلینیک', 240, 'LOW', 'OPEN', { source: 'MANUAL' }),
+    t('بررسی نوبت‌های بدون بیعانه ماه آینده', 'MANAGER', 'مدیر کلینیک', 96, 'MEDIUM', 'OPEN', { source: 'SYSTEM', branchId: null }),
+    t('استقرار واحد جدید شعبه کرج — آموزش پرسنل', 'MANAGER', 'مدیر کلینیک', 240, 'LOW', 'OPEN', { source: 'MANUAL', branchId: brKaraj.id, desc: 'آموزش SOP پذیرش برای تیم کرج' }),
   ])
 
-  // ---------- products ----------
+  // ---------- محصولات (هر شعبه انبار خودش) ----------
   const prodData: [string, string, number, number, number, number, string, string][] = [
     ['کامپوزیت 3M Filtek Z250', 'مصرفی ترمیمی', 2_800_000, 4_200_000, 14, 8, 'عدد', 'آریا دنت تجارت'],
     ['باندینگ سینگل باند', 'مصرفی ترمیمی', 1_900_000, 3_100_000, 4, 6, 'عدد', 'آریا دنت تجارت'],
@@ -242,12 +291,15 @@ async function main() {
     ['سرنگ آبیاری (بسته ۲۰)', 'مصرفی عمومی', 320_000, 600_000, 30, 12, 'بسته', 'سینا مدیکال‌تک'],
   ]
   const products = []
-  for (const [name, category, purchasePrice, salePrice, stockQty, minStock, unit, supplier] of prodData) {
-    const p = await db.product.create({ data: { name, category, purchasePrice, salePrice, stockQty, minStock, unit, supplier } })
+  // توزیع بین شعب: ۰–۴ مرکزی، ۵–۷ ولیعصر، ۸–۹ کرج
+  const prodBranch = [brMain, brMain, brMain, brMain, brMain, brValiasr, brValiasr, brValiasr, brKaraj, brKaraj]
+  for (let i = 0; i < prodData.length; i++) {
+    const [name, category, purchasePrice, salePrice, stockQty, minStock, unit, supplier] = prodData[i]
+    const p = await db.product.create({ data: { branchId: prodBranch[i].id, name, category, purchasePrice, salePrice, stockQty, minStock, unit, supplier } })
     products.push(p)
   }
 
-  // ---------- purchases (last 6 months) ----------
+  // ---------- خریدها (۶ ماه اخیر) ----------
   const purchasePlan: { daysAgo: number; supplier: string; items: [number, number][] }[] = [
     { daysAgo: 165, supplier: 'آریا دنت تجارت', items: [[0, 10], [1, 6]] },
     { daysAgo: 140, supplier: 'سینا مدیکال‌تک', items: [[3, 40], [4, 50], [9, 20]] },
@@ -265,11 +317,11 @@ async function main() {
       total += unitPrice * qty
       return { productId: products[idx].id, qty, unitPrice }
     })
-    const purchase = await db.purchase.create({ data: { date: addDays(now, -pu.daysAgo), supplier: pu.supplier, total, items: { create: itemsData } } })
-    void purchase
+    const firstBranch = prodBranch[pu.items[0][0]].id
+    await db.purchase.create({ data: { branchId: firstBranch, date: addDays(now, -pu.daysAgo), supplier: pu.supplier, total, items: { create: itemsData } } })
   }
 
-  // ---------- product sales (patients) ----------
+  // ---------- فروش محصولات ----------
   const saleProducts = [products[5], products[7], products[6]] // ویال بلیچینگ، کیت خانگی، ژل فلوراید
   for (let m = 11; m >= 0; m--) {
     const count = 2 + Math.floor(rnd() * 3)
@@ -280,6 +332,7 @@ async function main() {
       if (day > now) continue
       await db.productSale.create({
         data: {
+          branchId: prod.branchId,
           date: day,
           patientId: pick(patients).id,
           productId: prod.id,
@@ -291,20 +344,25 @@ async function main() {
     }
   }
 
-  // ---------- expenses (last 12 months) ----------
-  // پیش‌برآورد هزینه‌ی ماه جاری به نسبت روزهای گذشته
+  // ---------- هزینه‌ها (۱۲ ماه اخیر — تقسیم بین شعب، جمع کل مثل قبل) ----------
   // پیش‌برآورد هزینه‌ی ماه جاری (شمسی) به نسبت روزهای گذشته
   const curKey = jMonthKey(now)
   const monthStart = monthKeyStart(curKey)
   const nextMonthStart = monthKeyEnd(curKey)
   const elapsedFrac = Math.min(1, (now.getTime() - monthStart.getTime()) / (nextMonthStart.getTime() - monthStart.getTime()))
+  // سهم هر شعبه از هزینه‌ها: مرکزی ۵۰٪، ولیعصر ۳۰٪، کرج ۲۰٪
+  const branchShare: [string, string, number][] = [
+    [brMain.id, 'شعبه مرکزی', 0.5],
+    [brValiasr.id, 'شعبه ولیعصر', 0.3],
+    [brKaraj.id, 'شعبه کرج', 0.2],
+  ]
   for (let m = 11; m >= 0; m--) {
     const dayBase = addDays(now, -m * 30 - 2)
     const growth = 1 + (11 - m) * 0.012
     const prorate = m === 0 ? elapsedFrac : 1
     const suffix = m === 0 ? ' (تا امروز)' : ''
     const rows: [string, number, string][] = [
-      ['RENT', Math.round(35_000_000 * prorate), 'اجاره ملک کلینیک' + suffix],
+      ['RENT', Math.round(35_000_000 * prorate), 'اجاره ملک' + suffix],
       ['SALARY', Math.round((70_000_000 + rnd() * 8_000_000) * prorate), 'حقوق و کارانه پرسنل اداری' + suffix],
       ['UTILITIES', Math.round((9_000_000 + rnd() * 4_000_000) * prorate), 'آب، برق، گاز و تلفن' + suffix],
       ['MARKETING', Math.round((8_000_000 + rnd() * 12_000_000) * prorate), 'تبلیغات اینستاگرام و گوگل' + suffix],
@@ -313,15 +371,38 @@ async function main() {
     ]
     for (const [category, amount, description] of rows) {
       if (amount <= 0) continue
-      await db.expense.create({ data: { date: at(dayBase, 12), category, amount, description } })
+      for (const [branchId, branchLabel, share] of branchShare) {
+        const part = Math.round((amount * growth * share) / 100_000) * 100_000
+        if (part <= 0) continue
+        await db.expense.create({ data: { date: at(dayBase, 12), category, amount: part, description: `${description} — ${branchLabel}`, branchId } })
+      }
     }
   }
 
-  // ---------- meta ----------
+  // ---------- کاربران (۴ نقش) ----------
+  const pass = hashPassword('123456')
+  await db.user.create({
+    data: { username: 'manager', password: pass, fullName: 'رضا آریایی', role: 'ADMIN', phone: '09121110001', email: 'manager@labkhandmehr.ir', branchId: null },
+  })
+  await db.user.create({
+    data: { username: 'reception', password: pass, fullName: 'سمیرا احمدی', role: 'RECEPTIONIST', phone: '09121110002', branchId: brMain.id },
+  })
+  await db.user.create({
+    data: { username: 'reception2', password: pass, fullName: 'نگار مهدوی', role: 'RECEPTIONIST', phone: '09121110005', branchId: brValiasr.id },
+  })
+  await db.user.create({
+    data: { username: 'doctor', password: pass, fullName: 'دکتر نگین موسوی', role: 'DOCTOR', phone: '09121110003', branchId: brMain.id, doctorId: drNegin.id },
+  })
+  await db.user.create({
+    data: { username: 'patient', password: pass, fullName: 'سامان قاسمی', role: 'PATIENT', phone: '09305554433', patientId: patients[9].id },
+  })
+
+  // ---------- متا ----------
   await db.systemMeta.create({ data: { key: 'clinicName', value: 'کلینیک دندان‌پزشکی لبخند مهر' } })
+  await db.systemMeta.create({ data: { key: 'branches', value: '3' } })
   await db.systemMeta.create({ data: { key: 'seededAt', value: now.toISOString() } })
 
-  console.log(` done: ${apptCount} appointments, ${patients.length} patients, ${products.length} products`)
+  console.log(` done: ${apptCount} appointments, ${patients.length} patients, ${products.length} products, ${branches.length} branches, 5 users`)
 }
 
 main()

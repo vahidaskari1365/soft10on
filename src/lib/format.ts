@@ -72,7 +72,9 @@ export const SOURCE_LABEL: Record<string, string> = {
 }
 
 export const ROLE_LABEL: Record<string, string> = {
-  RECEPTIONIST: 'پذیرش',
+  ADMIN: 'مدیر کل',
   DOCTOR: 'پزشک',
+  RECEPTIONIST: 'منشی پذیرش',
+  PATIENT: 'بیمار',
   MANAGER: 'مدیر',
 }
