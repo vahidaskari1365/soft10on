@@ -9,7 +9,12 @@ import {
   LayoutDashboard, CalendarDays, Inbox, Bot, Users, Wallet, Sparkles, LogOut,
   Building2, UserCog, Stethoscope, UserRound, BrainCircuit, Headset, ChevronLeft,
   MessageSquare, FolderOpen, Hourglass, Settings, Globe, RefreshCw, ClipboardList,
+  PanelRightClose, PanelRightOpen, Home, BarChart3,
 } from 'lucide-react'
+import { ThemeToggle } from './theme-toggle'
+import { GlobalSearch } from './global-search'
+import { NotificationCenter } from './notification-center'
+import { ReportsSection } from './reports-section'
 import { LoginScreen } from './login-screen'
 import { DashboardSection } from './dashboard-section'
 import { AppointmentsSection } from './appointments-section'
@@ -42,6 +47,7 @@ const NAV_ADMIN: NavItem[] = [
   { key: 'patients', label: 'بیماران (CRM)', icon: Users },
   { key: 'records', label: 'پرونده هوشمند', icon: FolderOpen },
   { key: 'finance', label: 'حسابداری و انبار', icon: Wallet },
+  { key: 'reports', label: 'گزارش‌ها', icon: BarChart3 },
   { key: 'agent', label: 'دستیار مدیریتی', icon: BrainCircuit },
   { key: 'settings', label: 'تنظیمات سامانه', icon: Settings },
 ]
@@ -83,13 +89,14 @@ function ShieldIcon(props: { className?: string }) {
 
 /** میان‌برهای داشبورد برای هر نقش (کلیک روی آیکن = پرش به همان بخش) */
 const QUICK_KEYS: Record<string, string[]> = {
-  ADMIN: ['appointments', 'waitlist', 'tasks', 'messages', 'patients', 'records', 'finance', 'branches', 'staff', 'agent', 'settings'],
+  ADMIN: ['appointments', 'waitlist', 'tasks', 'messages', 'patients', 'records', 'finance', 'reports', 'branches', 'staff', 'agent', 'settings'],
   RECEPTIONIST: ['appointments', 'waitlist', 'tasks', 'messages', 'patients', 'records', 'agent'],
 }
 
 export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
   const [user, setUser] = useState<SessionUser | null>(initialUser)
   const [section, setSection] = useState<string>(user ? ROLE_HOME[user.role] ?? 'dashboard' : 'dashboard')
+  const [collapsed, setCollapsed] = useState(false)
   const [handoffText, setHandoffText] = useState<string | null>(null)
   const [handoffBusy, setHandoffBusy] = useState(false)
   const today = new Date()
@@ -127,23 +134,32 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Sidebar (desktop) — بلوک عمیق برند 10on */}
-      <aside className="hidden lg:flex fixed inset-y-0 right-0 w-64 flex-col bg-sidebar text-sidebar-foreground border-l border-sidebar-border z-30">
-        <div className="p-5 border-b border-sidebar-border/80">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-br from-sky-400 via-sky-500 to-teal-500 shadow-lg shadow-sky-500/25">
-              { }
+      {/* Sidebar (desktop) — بلوک عمیق برند 10on، قابل جمع‌شدن */}
+      <aside
+        className={cn(
+          'hidden lg:flex fixed inset-y-0 right-0 flex-col bg-sidebar text-sidebar-foreground border-l border-sidebar-border z-30 transition-[width] duration-200',
+          collapsed ? 'w-[72px]' : 'w-64'
+        )}
+      >
+        <div className={cn('p-5 border-b border-sidebar-border/80', collapsed && 'px-3')}>
+          <div className={cn('flex items-center gap-3', collapsed && 'justify-center')}>
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-sky-400 via-sky-500 to-teal-500 shadow-lg shadow-sky-500/25">
               <img src="/10on-icon.svg" alt="لوگوی 10on" className="h-7 w-7" aria-hidden="true" />
             </span>
-            <div>
-              <div className="text-xl font-extrabold leading-none tracking-tight" dir="ltr">
-                <span className="brand-gradient-text">10on</span>
+            {!collapsed && (
+              <div className="min-w-0">
+                <div className="text-xl font-extrabold leading-none tracking-tight" dir="ltr">
+                  <span className="brand-gradient-text">10on</span>
+                </div>
+                <div className="text-[11px] text-white/50 mt-1">لبخند شما، سرمایه ماست</div>
               </div>
-              <div className="text-[11px] text-white/50 mt-1">لبخند شما، سرمایه ماست</div>
-            </div>
+            )}
           </div>
         </div>
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto scroll-thin" aria-label="ناوبری اصلی">
+        <nav
+          className={cn('flex-1 p-3 space-y-1 overflow-y-auto scroll-thin', collapsed && 'px-2')}
+          aria-label="ناوبری اصلی"
+        >
           {nav.map((item) => {
             const Icon = item.icon
             const active = section === item.key
@@ -151,35 +167,57 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
               <button
                 key={item.key}
                 onClick={() => setSection(item.key)}
+                title={item.label}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                   'w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all text-right outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
+                  collapsed && 'justify-center px-0',
                   active
                     ? 'bg-linear-to-l from-sky-500 to-teal-500 text-white shadow-lg shadow-sky-500/25'
                     : 'text-white/60 hover:bg-white/[0.07] hover:text-white'
                 )}
               >
                 <Icon className={cn('h-[18px] w-[18px] shrink-0 transition-transform', active ? 'scale-110' : '')} />
-                <span className="flex-1">{item.label}</span>
-                {active ? <ChevronLeft className="h-4 w-4 opacity-80" /> : null}
+                {!collapsed && (
+                  <>
+                    <span className="flex-1">{item.label}</span>
+                    {active ? <ChevronLeft className="h-4 w-4 opacity-80" /> : null}
+                  </>
+                )}
               </button>
             )
           })}
         </nav>
         <div className="p-4 border-t border-sidebar-border/80 text-[11px] text-white/45 leading-5">
-          <div className="font-semibold text-white/70 mb-0.5">کلینیک دندان‌پزشکی لبخند مهر</div>
-          {faDigits(3)} شعبه فعال · نسخه دمو v{faDigits('0.2')}
+          {!collapsed && (
+            <>
+              <div className="font-semibold text-white/70 mb-0.5">کلینیک دندان‌پزشکی لبخند مهر</div>
+              <div>
+                {faDigits(3)} شعبه فعال · نسخه دمو v{faDigits('0.3')}
+              </div>
+            </>
+          )}
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            title={collapsed ? 'باز کردن منو' : 'جمع کردن منو'}
+            aria-label={collapsed ? 'باز کردن منو' : 'جمع کردن منو'}
+            className={cn(
+              'mt-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.06] text-white/60 hover:text-white hover:bg-white/[0.12] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
+              collapsed && 'mx-auto'
+            )}
+          >
+            {collapsed ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
+          </button>
         </div>
       </aside>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col lg:pr-64 min-h-screen">
+      <div className={cn('flex-1 flex flex-col min-h-screen transition-[padding] duration-200', collapsed ? 'lg:pr-[72px]' : 'lg:pr-64')}>
         {/* Topbar */}
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-border">
+        <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border">
           <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3">
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-sky-400 to-teal-500 shadow-md shadow-sky-500/20">
-                { }
                 <img src="/10on-icon.svg" alt="10on" className="h-5.5 w-5.5" aria-hidden="true" />
               </span>
               <div className="min-w-0">
@@ -194,10 +232,13 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-[#F6EFE3] text-[#7C6434] px-3 py-1 text-[11px] font-semibold">
+              <GlobalSearch onNavigate={setSection} />
+              <NotificationCenter onNavigate={setSection} />
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/[0.08] text-gold-foreground/80 px-3 py-1 text-[11px] font-semibold">
                 <RoleIcon className="h-3.5 w-3.5" />
                 {ROLE_LABEL[user.role] ?? user.role}
               </span>
+              <ThemeToggle />
               <span className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-xs shadow-sm">
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-linear-to-br from-sky-500 to-teal-500 text-white text-[11px] font-bold">
                   {user.fullName.trim().charAt(0)}
@@ -214,6 +255,13 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
               </button>
             </div>
           </div>
+          {/* Breadcrumb */}
+          <nav aria-label="مسیر صفحه" className="px-4 md:px-6 pb-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Home className="h-3 w-3" />
+            <span>10on</span>
+            <ChevronLeft className="h-3 w-3 opacity-60" />
+            <span className="font-medium text-foreground/80">{nav.find((i) => i.key === section)?.label ?? 'داشبورد'}</span>
+          </nav>
         </header>
 
         {/* Content — هر بخش با انیمیشن نرم وارد می‌شود */}
@@ -245,6 +293,7 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
             {section === 'tasks' && <TasksSection />}
             {section === 'patients' && <PatientsSection />}
             {section === 'finance' && <FinanceSection />}
+            {section === 'reports' && user.role === 'ADMIN' && <ReportsSection />}
             {section === 'branches' && <BranchesSection />}
             {section === 'staff' && <StaffSection />}
             {section === 'agent' && (user.role === 'ADMIN'
@@ -313,10 +362,10 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
 
       {/* Mobile bottom nav */}
       <nav
-        className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/90 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)]"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/90 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)]"
         aria-label="ناوبری موبایل"
       >
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}>
+        <div className="flex overflow-x-auto scroll-thin">
           {nav.map((item) => {
             const Icon = item.icon
             const active = section === item.key
@@ -326,7 +375,7 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
                 onClick={() => setSection(item.key)}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium min-h-[56px] justify-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400',
+                  'relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium min-h-[56px] justify-center min-w-[64px] flex-1 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400',
                   active ? 'text-sky-600' : 'text-muted-foreground'
                 )}
               >

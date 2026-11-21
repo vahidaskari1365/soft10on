@@ -30,6 +30,13 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
+    <head>{/* جلوگیری از فلش حالت تاریک قبل از رنگ‌آمیزی */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('tenon-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark')}catch(e){}})()`,
+          }}
+        />
+    </head>
       <body className={`${vazir.variable} antialiased bg-background text-foreground font-sans`}>
         {children}
         <Toaster />
