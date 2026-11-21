@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
+import { postJournal, ACC } from '@/lib/ledger'
 import { refreshInvoiceStatus } from '@/lib/accounting'
 
 /** جزئیات فاکتور (برای چاپ) */
@@ -66,21 +67,36 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const amount = Math.min(Math.max(1, body.amount ?? remaining), remaining)
   if (remaining <= 0) return NextResponse.json({ error: 'این فاکتور قبلاً تسویه شده است' }, { status: 400 })
 
-  await db.payment.create({
-    data: {
-      branchId: invoice.branchId,
-      date: new Date(),
-      direction: 'IN',
-      method: body.method ?? 'CASH',
-      amount,
-      cashAccountId: body.cashAccountId || null,
-      patientId: invoice.patientId,
-      invoiceId: invoice.id,
-      description: `پرداخت فاکتور شماره ${invoice.number}`,
-      refType: 'INVOICE',
+  await db.$transaction(async (tx) => {
+    await tx.payment.create({
+      data: {
+        branchId: invoice.branchId,
+        date: new Date(),
+        direction: 'IN',
+        method: body.method ?? 'CASH',
+        amount,
+        cashAccountId: body.cashAccountId || null,
+        patientId: invoice.patientId,
+        invoiceId: invoice.id,
+        description: `پرداخت فاکتور شماره ${invoice.number}`,
+        refType: 'INVOICE',
+        refId: invoice.id,
+      },
+    })
+    // بدهکار: صندوق/بانک | بستانکار: حساب‌های دریافتنی
+    const cashCode = body.method === 'CASH' ? ACC.CASH : ACC.BANK
+    await postJournal(tx, {
+      memo: `دریافت وجه فاکتور شماره ${invoice.number}`,
+      refType: 'PAYMENT',
       refId: invoice.id,
-    },
-  })
+      branchId: invoice.branchId,
+      createdById: session.id,
+      lines: [
+        { code: cashCode, debit: amount, detail: `فاکتور ${invoice.number}` },
+        { code: ACC.AR, credit: amount, detail: `تسویه فاکتور ${invoice.number}` },
+      ],
+    })
+  }, { timeout: 20_000, maxWait: 10_000 })
   const status = await refreshInvoiceStatus(id)
   return NextResponse.json({ ok: true, status, paid: paid + amount, remaining: Math.max(0, remaining - amount) })
 }

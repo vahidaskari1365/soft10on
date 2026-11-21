@@ -33,6 +33,7 @@ export type SessionUser = {
   email: string | null
   branchId: string | null
   branch: { id: string; name: string; code: string; city: string } | null
+  clinicId: string | null
   doctorId: string | null
   doctorName: string | null
   patientId: string | null
@@ -76,7 +77,8 @@ export function toSessionUser(u: {
   phone: string | null
   email: string | null
   branchId: string | null
-  branch?: { id: string; name: string; code: string; city: string } | null
+  branch?: { id: string; name: string; code: string; city: string; clinicId?: string | null } | null
+  clinicId: string | null
   doctorId: string | null
   doctor?: { name: string } | null
   patientId: string | null
@@ -91,6 +93,7 @@ export function toSessionUser(u: {
     email: u.email,
     branchId: u.branchId,
     branch: u.branch ? { id: u.branch.id, name: u.branch.name, code: u.branch.code, city: u.branch.city } : null,
+    clinicId: u.clinicId ?? u.branch?.clinicId ?? null,
     doctorId: u.doctorId,
     doctorName: u.doctor?.name ?? null,
     patientId: u.patientId,
@@ -108,7 +111,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     if (!userId) return null
     const user = await db.user.findUnique({
       where: { id: userId },
-      include: { branch: true, doctor: true, patient: true },
+      include: { branch: true, doctor: true, patient: true, clinic: true },
     })
     if (!user || !user.active) return null
     return toSessionUser(user)

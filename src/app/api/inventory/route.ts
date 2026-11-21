@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth'
+import { postJournal, ACC } from '@/lib/ledger'
 import { db } from '@/lib/db'
 
 export async function GET() {
@@ -32,12 +33,29 @@ export async function POST(request: Request) {
     return { productId: i.productId, qty: i.qty, unitPrice }
   })
 
-  const purchase = await db.purchase.create({
-    data: { branchId: products[0]?.branchId ?? null, date: new Date(), supplier, total, items: { create: rows } },
-    include: { items: { include: { product: true } } },
-  })
-  for (const r of rows) {
-    await db.product.update({ where: { id: r.productId }, data: { stockQty: { increment: r.qty } } })
-  }
+  const purchase = await db.$transaction(async (tx) => {
+    const pur = await tx.purchase.create({
+      data: { branchId: products[0]?.branchId ?? null, date: new Date(), supplier, total, items: { create: rows } },
+      include: { items: { include: { product: true } } },
+    })
+    for (const r of rows) {
+      await tx.product.update({ where: { id: r.productId }, data: { stockQty: { increment: r.qty } } })
+    }
+    if (total > 0) {
+      // بدهکار: موجودی کالا | بستانکار: حساب‌های پرداختنی
+      await postJournal(tx, {
+        memo: `خرید از ${supplier}`,
+        refType: 'PURCHASE',
+        refId: pur.id,
+        branchId: pur.branchId,
+        createdById: session.id,
+        lines: [
+          { code: ACC.INVENTORY, debit: total, detail: `${rows.length} قلم` },
+          { code: ACC.AP, credit: total, detail: `بدهی ${supplier}` },
+        ],
+      })
+    }
+    return pur
+  }, { timeout: 20_000, maxWait: 10_000 })
   return NextResponse.json({ purchase })
 }

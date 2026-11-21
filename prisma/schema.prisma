@@ -39,6 +39,20 @@ model Branch {
   messages   Message[]
   waitlists  Waitlist[]
   publicBookings PublicBooking[]
+  // — فاز تکمیل —
+  managerName String?
+  province    String?
+  postalCode  String?
+  mobile      String?
+  email       String?
+  bankInfo    String?
+  scheduleJson Json?   // برنامه کاری روزانه: [{dow, open, close, breakStart, breakEnd, closed, shifts}]
+  clinicId    String?
+  clinic      Clinic?  @relation(fields: [clinicId], references: [id])
+  roomUnits   RoomUnit[]
+  holidays    Holiday[]
+  documents   Document[]
+  journalEntries JournalEntry[]
 }
 
 model User {
@@ -58,6 +72,19 @@ model User {
   active      Boolean   @default(true)
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
+  // — فاز تکمیل —
+  nationalId        String?
+  jobTitle          String?
+  hireDate          DateTime?
+  contractType      String?   // FULL_TIME | PART_TIME | CONTRACT
+  baseSalary        Int       @default(0)
+  commissionPercent Float     @default(0)
+  workHours         String?
+  clinicId          String?
+  clinic            Clinic?   @relation(fields: [clinicId], references: [id])
+  documentsUploaded Document[]
+  auditLogs         AuditLog[]
+  journalEntries    JournalEntry[]
 }
 
 // ---------- عملیاتی ----------
@@ -75,16 +102,27 @@ model Doctor {
   appointments   Appointment[]
   medicalRecords MedicalRecord[]
   waitlists      Waitlist[]
+  treatedPatients Patient[]       @relation("PatientTreatingDoctor")
+  prescriptions   Prescription[]
+  treatmentPlans  TreatmentPlan[]
 }
 
 model Service {
   id           String        @id @default(cuid())
   name         String
   category     String  // ترمیمی، جراحی، زیبایی، پیشگیری، تشخیص، ارتودنسی
-  price        Float   // تومان
+  price        Int     // تومان (واحد صحیح — بدون اعشار)
   durationMin  Int     @default(30)
   appointments Appointment[]
   publicBookings PublicBooking[]
+  // — فاز تکمیل —
+  code             String?  @unique
+  description      String?
+  active           Boolean  @default(true)
+  commissionPercent Float   @default(0)
+  taxPercent       Float    @default(0)
+  needsRoom        Boolean  @default(false)
+  treatmentPlanSteps TreatmentPlanStep[]
 }
 
 model Patient {
@@ -100,6 +138,39 @@ model Patient {
   isPregnant         Boolean       @default(false) // هشدار بارداری
   chronicNote        String?       // بیماری زمینه‌ای
   createdAt          DateTime      @default(now())
+  // — فاز تکمیل: هویتی —
+  gender             String?       // FEMALE | MALE
+  birthDate          DateTime?     // تاریخ تولد کامل
+  email              String?
+  landline           String?
+  province           String?
+  city               String?
+  address            String?
+  postalCode         String?
+  fileNo             String?       @unique // شماره پرونده اختصاصی
+  status             String        @default("ACTIVE") // ACTIVE | ARCHIVED
+  referralSource     String?       // منبع آشنایی با کلینیک
+  // — فاز تکمیل: پزشکی —
+  bloodType          String?
+  medications        String?       // داروهای مصرفی
+  surgeryHistory     String?
+  hospitalizationHistory String?
+  treatmentHistory   String?
+  medWarnings        String?       // هشدارهای پزشکی
+  treatingDoctorId   String?
+  treatingDoctor     Doctor?       @relation("PatientTreatingDoctor", fields: [treatingDoctorId], references: [id])
+  // — فاز تکمیل: بیمه —
+  insuranceInsurer   String?       // بیمه پایه
+  insurancePolicyNo  String?
+  suppInsurer        String?       // بیمه تکمیلی
+  suppPolicyNo       String?
+  clinicId           String?
+  clinic             Clinic?       @relation(fields: [clinicId], references: [id])
+  documents          Document[]
+  emergencyContacts  EmergencyContact[]
+  prescriptions      Prescription[]
+  treatmentPlans     TreatmentPlan[]
+  timeline           TimelineEvent[]
   appointments       Appointment[]
   tasks              Task[]
   productSales       ProductSale[]
@@ -125,12 +196,19 @@ model Appointment {
   start     DateTime
   status    String   @default("CONFIRMED") // PENDING | CONFIRMED | DONE | CANCELLED | NO_SHOW
   source    String   @default("PHONE") // ASSISTANT | WHATSAPP | PHONE | WALKIN | PANEL
-  price     Float
+  price     Int
   paid      Boolean  @default(false)
-  deposit   Float    @default(0)
+  deposit   Int      @default(0)
   note      String?
   createdAt DateTime @default(now())
   tasks     Task[]
+  // — فاز تکمیل —
+  roomUnitId  String?
+  roomUnit    RoomUnit?   @relation(fields: [roomUnitId], references: [id])
+  reason      String?     // علت مراجعه
+  cancelReason String?    // دلیل لغو یا عدم حضور
+  reminderSent String?    // PENDING | SENT | FAILED | NONE
+  histories   AppointmentHistory[]
 
   @@index([start])
 }
@@ -164,13 +242,19 @@ model Product {
   name          String
   category      String
   unit          String        @default("عدد")
-  purchasePrice Float
-  salePrice     Float
+  purchasePrice Int
+  salePrice     Int
   stockQty      Int
   minStock      Int           @default(5)
   supplier      String?
   purchaseItems PurchaseItem[]
   sales         ProductSale[]
+  // — فاز تکمیل —
+  code       String?
+  barcode    String?
+  expiryDate DateTime?
+  batchNo    String?
+  active     Boolean @default(true)
 }
 
 model SystemMeta {
@@ -184,7 +268,7 @@ model Purchase {
   branch    Branch?        @relation(fields: [branchId], references: [id])
   date      DateTime
   supplier  String
-  total     Float
+  total     Int
   items     PurchaseItem[]
 }
 
@@ -195,7 +279,7 @@ model PurchaseItem {
   productId  String
   product    Product @relation(fields: [productId], references: [id])
   qty        Int
-  unitPrice  Float
+  unitPrice  Int
 }
 
 model ProductSale {
@@ -208,8 +292,8 @@ model ProductSale {
   productId String
   product   Product  @relation(fields: [productId], references: [id])
   qty       Int
-  unitPrice Float
-  total     Float
+  unitPrice Int
+  total     Int
 }
 
 model Expense {
@@ -218,7 +302,7 @@ model Expense {
   branch      Branch?  @relation(fields: [branchId], references: [id])
   date        DateTime
   category    String   // RENT | SALARY | UTILITIES | MARKETING | EQUIPMENT | OTHER
-  amount      Float
+  amount      Int
   description String
 }
 
@@ -232,7 +316,7 @@ model CashAccount {
   type           String      @default("CASH") // CASH | BANK
   bankName       String?
   accountNo      String?
-  openingBalance Float       @default(0)
+  openingBalance Int          @default(0)
   isActive       Boolean     @default(true)
   createdAt      DateTime    @default(now())
   payments       Payment[]
@@ -248,9 +332,9 @@ model Invoice {
   patient   Patient?      @relation(fields: [patientId], references: [id])
   date      DateTime
   status    String        @default("ISSUED") // DRAFT | ISSUED | PARTIAL | PAID | CANCELLED
-  subtotal  Float
-  discount  Float         @default(0)
-  total     Float
+  subtotal  Int
+  discount  Int           @default(0)
+  total     Int
   note      String?
   items     InvoiceItem[]
   payments  Payment[]
@@ -267,8 +351,8 @@ model InvoiceItem {
   refId     String?
   title     String
   qty       Int      @default(1)
-  unitPrice Float
-  total     Float
+  unitPrice Int
+  total     Int
 }
 
 model Payment {
@@ -278,7 +362,7 @@ model Payment {
   date          DateTime
   direction     String       // IN | OUT
   method        String       @default("CASH") // CASH | CARD | POS | ONLINE | TRANSFER | CHECK
-  amount        Float
+  amount        Int
   cashAccountId String?
   cashAccount   CashAccount? @relation(fields: [cashAccountId], references: [id])
   patientId     String?
@@ -302,7 +386,7 @@ model Check {
   number        String
   bank          String
   dueDate       DateTime
-  amount        Float
+  amount        Int
   status        String       @default("IN_HAND") // IN_HAND | DEPOSITED | CLEARED | BOUNCED | CANCELLED
   patientId     String?
   patient       Patient?     @relation(fields: [patientId], references: [id])
@@ -323,12 +407,12 @@ model Payroll {
   staffName  String
   role       String    // نقش سازمانی
   userId     String?
-  baseSalary Float
-  overtime   Float     @default(0)
-  bonus      Float     @default(0)
-  deductions Float     @default(0)
-  commission Float     @default(0) // کارانه محاسبه‌شده از نوبت‌های DONE همان ماه
-  total      Float
+  baseSalary Int
+  overtime   Int       @default(0)
+  bonus      Int       @default(0)
+  deductions Int       @default(0)
+  commission Int       @default(0) // کارانه محاسبه‌شده از نوبت‌های DONE همان ماه
+  total      Int
   status     String    @default("PENDING") // PENDING | PAID
   paidAt     DateTime?
   method     String?
@@ -432,4 +516,266 @@ model AiCall {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ---------- فاز تکمیل: پرونده، اسناد و درمان ----------
+
+model EmergencyContact {
+  id        String  @id @default(cuid())
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  name      String
+  relation  String
+  phone     String
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id           String   @id @default(cuid())
+  branchId     String?
+  branch       Branch?  @relation(fields: [branchId], references: [id])
+  patientId    String
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinicId     String?
+  clinic       Clinic?  @relation(fields: [clinicId], references: [id])
+  kind         String   @default("MEDICAL") // LAB | IMAGING | RX | INSURANCE | CONSENT | MEDICAL | AVATAR | PORTAL_UPLOAD
+  title        String
+  mimeType     String
+  sizeBytes    Int
+  data         Bytes
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
+  note         String?
+  createdAt    DateTime @default(now())
+
+  @@index([patientId])
+}
+
+model Prescription {
+  id        String            @id @default(cuid())
+  patientId String
+  patient   Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId  String?
+  doctor    Doctor?           @relation(fields: [doctorId], references: [id])
+  date      DateTime          @default(now())
+  diagnosis String?
+  note      String?
+  items     PrescriptionItem[]
+  createdById String?
+  createdAt DateTime          @default(now())
+
+  @@index([patientId])
+}
+
+model PrescriptionItem {
+  id            String       @id @default(cuid())
+  prescriptionId String
+  prescription  Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  drug          String
+  form          String?      // شکل دارویی: قرص، کپسول، شربت، آمپول…
+  dose          String?
+  frequency     String?      // تعداد دفعات مصرف
+  duration      String?      // مدت مصرف
+  method        String?      // روش مصرف
+  note          String?
+}
+
+model TreatmentPlan {
+  id        String              @id @default(cuid())
+  patientId String
+  patient   Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId  String?
+  doctor    Doctor?             @relation(fields: [doctorId], references: [id])
+  title     String
+  status    String              @default("ACTIVE") // ACTIVE | COMPLETED | CANCELLED
+  note      String?
+  steps     TreatmentPlanStep[]
+  createdById String?
+  createdAt DateTime            @default(now())
+
+  @@index([patientId])
+}
+
+model TreatmentPlanStep {
+  id        String        @id @default(cuid())
+  planId    String
+  plan      TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  title     String
+  serviceId String?
+  service   Service?      @relation(fields: [serviceId], references: [id])
+  cost      Int           @default(0)
+  scheduledAt DateTime?
+  status    String        @default("PENDING") // PENDING | DONE | CANCELLED
+  doneAt    DateTime?
+  nextSessionAt DateTime?
+}
+
+model AppointmentHistory {
+  id             String      @id @default(cuid())
+  appointmentId  String
+  appointment    Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  action         String      // CREATE | RESCHEDULE | CANCEL | STATUS
+  oldStart       DateTime?
+  newStart       DateTime?
+  oldStatus      String?
+  newStatus      String?
+  changedByName  String?
+  note           String?
+  createdAt      DateTime    @default(now())
+
+  @@index([appointmentId])
+}
+
+model RoomUnit {
+  id       String  @id @default(cuid())
+  branchId String
+  branch   Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  name     String
+  type     String  @default("ROOM") // ROOM | UNIT
+  capacity Int     @default(1)
+  active   Boolean @default(true)
+  note     String?
+  appointments Appointment[]
+  createdAt DateTime @default(now())
+}
+
+model Holiday {
+  id       String   @id @default(cuid())
+  branchId String?
+  branch   Branch?  @relation(fields: [branchId], references: [id])
+  date     DateTime
+  title    String
+  type     String   @default("OFFICIAL") // OFFICIAL | CLINIC
+  createdAt DateTime @default(now())
+
+  @@unique([branchId, date, title])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  userName  String?
+  action    String   // LOGIN | CREATE | UPDATE | DELETE | UPLOAD | DOWNLOAD | PAY | APPROVE | EXPORT | PASSWORD_RESET …
+  entity    String   // Patient | Invoice | Payment | Document | User | Appointment …
+  entityId  String?
+  branchId  String?
+  clinicId  String?
+  result    String   @default("SUCCESS") // SUCCESS | DENIED | FAILED
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model TimelineEvent {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  type      String   // PATIENT_CREATED | APPOINTMENT | PAYMENT | INVOICE | DOCUMENT | MESSAGE | RX | TREATMENT | STATUS …
+  title     String
+  refId     String?
+  actorName String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([patientId, createdAt])
+}
+
+// ---------- فاز تکمیل: چندمستاجری و اشتراک ----------
+
+model Plan {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  price       Int      @default(0)       // تومان در دوره
+  period      String   @default("MONTHLY") // MONTHLY | YEARLY
+  maxUsers    Int      @default(5)
+  maxBranches Int      @default(1)
+  aiCallsLimit Int     @default(500)
+  storageMb   Int      @default(512)
+  features    Json?
+  active      Boolean  @default(true)
+  clinics     Clinic[]
+  createdAt   DateTime @default(now())
+}
+
+model Clinic {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  legalName   String?
+  nationalId  String?
+  ownerName   String?
+  contactPhone String?
+  email       String?
+  isActive    Boolean   @default(true)
+  planId      String?
+  plan        Plan?     @relation(fields: [planId], references: [id])
+  planStartsAt DateTime?
+  planEndsAt  DateTime?
+  createdAt   DateTime  @default(now())
+  branches    Branch[]
+  patients    Patient[]
+  users       User[]
+  documents   Document[]
+}
+
+// ---------- فاز تکمیل: حسابداری دوبل ----------
+
+model LedgerAccount {
+  id         String  @id @default(cuid())
+  code       String  @unique
+  name       String
+  type       String  // ASSET | LIABILITY | EQUITY | INCOME | EXPENSE
+  parentCode String?
+  isActive   Boolean @default(true)
+  lines      JournalLine[]
+  createdAt  DateTime @default(now())
+}
+
+model JournalEntry {
+  id          String        @id @default(cuid())
+  number      Int           @unique
+  date        DateTime      @default(now())
+  memo        String
+  refType     String?       // INVOICE | PAYMENT | EXPENSE | PAYROLL | PURCHASE | MANUAL
+  refId       String?
+  branchId    String?
+  branch      Branch?       @relation(fields: [branchId], references: [id])
+  status      String        @default("POSTED") // DRAFT | POSTED
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id])
+  lines       JournalLine[]
+  createdAt   DateTime      @default(now())
+
+  @@index([date])
+}
+
+model JournalLine {
+  id        String        @id @default(cuid())
+  entryId   String
+  entry     JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId String
+  account   LedgerAccount @relation(fields: [accountId], references: [id])
+  debit     Int           @default(0)
+  credit    Int           @default(0)
+  detail    String?
+}
+
+// ---------- فاز تکمیل: پشتیبانی پلتفرم ----------
+
+model SupportTicket {
+  id            String   @id @default(cuid())
+  subject       String
+  category      String   @default("GENERAL")
+  priority      String   @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  status        String   @default("OPEN") // OPEN | IN_PROGRESS | ANSWERED | CLOSED
+  requesterName String?
+  clinicName    String?
+  assigneeName  String?
+  body          String
+  responses     Json?
+  createdAt     DateTime @default(now())
 }

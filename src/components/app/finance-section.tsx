@@ -1298,6 +1298,7 @@ export function FinanceSection() {
           <TabsTrigger value="report" className="rounded-lg text-xs md:text-sm">داشبورد مالی</TabsTrigger>
           <TabsTrigger value="invoices" className="rounded-lg text-xs md:text-sm">فاکتورها</TabsTrigger>
           <TabsTrigger value="ledger" className="rounded-lg text-xs md:text-sm">دفتر روزنه</TabsTrigger>
+          <TabsTrigger value="journal" className="rounded-lg text-xs md:text-sm">دفتر کل و تراز</TabsTrigger>
           <TabsTrigger value="cash" className="rounded-lg text-xs md:text-sm">صندوق و بانک</TabsTrigger>
           <TabsTrigger value="checks" className="rounded-lg text-xs md:text-sm">چک‌ها</TabsTrigger>
           <TabsTrigger value="payroll" className="rounded-lg text-xs md:text-sm">حقوق و کارانه</TabsTrigger>
@@ -1317,7 +1318,85 @@ export function FinanceSection() {
         <TabsContent value="inventory" className="mt-4"><InventoryTab toast={toast} /></TabsContent>
         <TabsContent value="expenses" className="mt-4"><ExpensesTab toast={toast} /></TabsContent>
         <TabsContent value="analysis" className="mt-4"><AnalysisTab monthKey={monthKey} branch={branch} /></TabsContent>
+        <TabsContent value="journal" className="mt-4"><JournalTab /></TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+type JournalLineUI = { id: string; debit: number; credit: number; detail?: string; account: { code: string; name: string } }
+type JournalEntryUI = { id: string; number: number; date: string; memo: string; refType?: string; status: string; lines: JournalLineUI[]; createdBy?: { fullName: string } }
+type TrialRow = { code: string; name: string; type: string; debit: number; credit: number }
+
+/** دفتر کل (اسناد دوبل) + تراز آزمایشی — داده واقعی از API حسابداری */
+function JournalTab() {
+  const [entries, setEntries] = useState<JournalEntryUI[] | null>(null)
+  const [trial, setTrial] = useState<{ rows: TrialRow[]; debit: number; credit: number; balanced: boolean } | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/ledger?view=journal&take=50').then((r) => r.json()).then((j) => setEntries(j.entries ?? [])).catch(() => setEntries([]))
+    fetch('/api/ledger?view=trial').then((r) => r.json()).then((j) => setTrial({ rows: j.trialBalance ?? [], debit: j.debit ?? 0, credit: j.credit ?? 0, balanced: j.balanced ?? false })).catch(() => setTrial(null))
+  }, [])
+
+  return (
+    <div className="space-y-4">
+      {trial ? (
+        <div className={`rounded-2xl border px-4 py-3 flex items-center justify-between ${trial.balanced ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/60 border-rose-200'}`}>
+          <div className="text-sm font-bold">تراز آزمایشی {trial.balanced ? 'برقرار است' : 'ناهموار است!'}</div>
+          <div className="text-xs" dir="ltr">Dr: {trial.debit.toLocaleString('fa-IR')} · Cr: {trial.credit.toLocaleString('fa-IR')}</div>
+        </div>
+      ) : null}
+      <div className="rounded-2xl border overflow-hidden">
+        <div className="bg-muted/60 px-4 py-2 text-xs font-bold">اسناد حسابداری (دفتر روزنامه)</div>
+        {!entries ? <LoadingBlock rows={4} /> : entries.length === 0 ? <EmptyState text="سندی ثبت نشده است." /> : (
+          <div className="divide-y">
+            {entries.map((e) => (
+              <div key={e.id} className="px-4 py-2.5">
+                <button className="w-full flex items-center justify-between gap-2 text-right" onClick={() => setOpen(open === e.id ? null : e.id)}>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold truncate">#{e.number} — {e.memo}</div>
+                    <div className="text-[10px] text-muted-foreground">{e.status === 'POSTED' ? 'ثبت‌شده' : 'پیش‌نویس'} · {e.refType ?? 'MANUAL'}{e.createdBy ? ` · ${e.createdBy.fullName}` : ''}</div>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground shrink-0" dir="ltr">{new Date(e.date).toLocaleDateString('fa-IR')}</div>
+                </button>
+                {open === e.id ? (
+                  <div className="mt-2 rounded-xl bg-muted/40 p-2 text-[11px] space-y-1">
+                    {e.lines.map((l) => (
+                      <div key={l.id} className="flex items-center justify-between gap-2" dir="rtl">
+                        <span className="truncate">{l.account.code} — {l.account.name}{l.detail ? ` (${l.detail})` : ''}</span>
+                        <span className="shrink-0 font-semibold" dir="ltr">
+                          {l.debit > 0 ? `بدهکار ${l.debit.toLocaleString('fa-IR')}` : `بستانکار ${l.credit.toLocaleString('fa-IR')}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {trial ? (
+        <div className="rounded-2xl border overflow-hidden">
+          <div className="bg-muted/60 px-4 py-2 text-xs font-bold">تراز آزمایشی تفصیلی</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead><tr className="bg-muted/30 text-muted-foreground"><th className="px-3 py-1.5 text-right">کد</th><th className="px-3 py-1.5 text-right">حساب</th><th className="px-3 py-1.5 text-left">بدهکار</th><th className="px-3 py-1.5 text-left">بستانکار</th></tr></thead>
+              <tbody>
+                {trial.rows.filter((r) => r.debit || r.credit).map((r) => (
+                  <tr key={r.code} className="border-t">
+                    <td className="px-3 py-1.5" dir="ltr">{r.code}</td>
+                    <td className="px-3 py-1.5">{r.name}</td>
+                    <td className="px-3 py-1.5 text-left" dir="ltr">{r.debit ? r.debit.toLocaleString('fa-IR') : '—'}</td>
+                    <td className="px-3 py-1.5 text-left" dir="ltr">{r.credit ? r.credit.toLocaleString('fa-IR') : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

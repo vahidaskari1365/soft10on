@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { validateApptTime, doctorHasConflict } from '@/lib/scheduling'
+import { addTimeline } from '@/lib/timeline'
+import { logAudit } from '@/lib/audit'
 
 export async function GET(request: Request) {
   const session = await getSessionUser()
@@ -74,6 +76,54 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'تداخل زمانی: پزشک در این بازه نوبت دیگری دارد' }, { status: 409 })
   }
   const startMs = time.startMs
+  const startDt = new Date(startMs)
+
+  // ————— بررسی برنامه کاری شعبه و تعطیلات —————
+  const doctorRec = await db.doctor.findUnique({ where: { id: doctorId }, include: { branch: true } })
+  const branchRec = doctorRec?.branch
+  if (branchRec) {
+    const isFri = startDt.getUTCDay() === 5
+    const hour = startDt.getUTCHours() + startDt.getUTCMinutes() / 60
+    if (branchRec.closedFri && isFri) {
+      return NextResponse.json({ error: 'شعبه در روز جمعه تعطیل است' }, { status: 400 })
+    }
+    const closeH = isFri ? (branchRec.thuCloseHour ?? branchRec.closeHour) : branchRec.closeHour
+    const endHour = (startMs + Math.max(service.durationMin, 15) * 60_000) / 3_600_000
+    if (hour < branchRec.openHour || endHour > closeH + 1) {
+      return NextResponse.json({ error: `ساعت نوبت خارج از ساعات کاری شعبه (${branchRec.openHour} تا ${closeH}) است` }, { status: 400 })
+    }
+    const dayStart = new Date(Date.UTC(startDt.getUTCFullYear(), startDt.getUTCMonth(), startDt.getUTCDate()))
+    const holiday = await db.holiday.findFirst({
+      where: { OR: [{ branchId: branchRec.id }, { branchId: null }], date: { gte: dayStart, lt: new Date(dayStart.getTime() + 86_400_000) } },
+    })
+    if (holiday) {
+      return NextResponse.json({ error: `این روز تعطیل است: ${holiday.title}` }, { status: 400 })
+    }
+  }
+
+  // ————— کنترل تداخل اتاق/یونیت —————
+  const bodyTyped = body as { roomUnitId?: string; reason?: string; deposit?: number }
+  const roomUnitId = bodyTyped.roomUnitId || null
+  if (roomUnitId) {
+    const room = await db.roomUnit.findUnique({ where: { id: roomUnitId } })
+    if (!room) return NextResponse.json({ error: 'اتاق یا یونیت یافت نشد' }, { status: 400 })
+    if (!room.active) return NextResponse.json({ error: 'این اتاق غیرفعال است' }, { status: 400 })
+    const endMs = startMs + Math.max(service.durationMin, 15) * 60_000
+    const roomCands = await db.appointment.findMany({
+      where: { roomUnitId, status: { in: ['REQUESTED', 'PENDING', 'CONFIRMED', 'ARRIVED', 'IN_VISIT', 'DONE'] }, start: { gte: new Date(startMs - 4 * 3_600_000), lt: new Date(endMs + 4 * 3_600_000) } },
+      include: { service: { select: { durationMin: true } } },
+    })
+    const roomOverlap = roomCands.some((c) => {
+      const cs = c.start.getTime()
+      const ce = cs + Math.max(c.service.durationMin, 15) * 60_000
+      return startMs < ce && endMs > cs
+    })
+    if (roomOverlap) {
+      return NextResponse.json({ error: 'تداخل زمانی: این اتاق در بازه انتخابی نوبت دیگری دارد' }, { status: 409 })
+    }
+  }
+  const deposit = Math.max(0, Math.round(Number(bodyTyped.deposit ?? 0) || 0))
+  if (!Number.isFinite(deposit) || deposit < 0) return NextResponse.json({ error: 'مبلغ بیعانه نامعتبر است' }, { status: 400 })
 
   const doctor = await db.doctor.findUnique({ where: { id: doctorId } })
   if (!doctor) return NextResponse.json({ error: 'پزشک یافت نشد' }, { status: 400 })
@@ -84,13 +134,24 @@ export async function POST(request: Request) {
       patientId: pid,
       doctorId,
       serviceId,
-      start: new Date(start),
+      start: new Date(startMs),
       status: 'PENDING',
       source: source ?? 'PANEL',
       price: service.price,
+      deposit,
       note: note ?? null,
+      reason: bodyTyped.reason?.trim() || null,
+      roomUnitId,
+      reminderSent: 'PENDING',
     },
-    include: { patient: true, doctor: true, service: true },
+    include: { patient: true, doctor: true, service: true, roomUnit: true },
   })
-  return NextResponse.json({ appointment: appt })
+
+  await db.appointmentHistory.create({
+    data: { appointmentId: appt.id, action: 'CREATE', newStart: appt.start, newStatus: appt.status, changedByName: session.fullName },
+  })
+  await addTimeline(pid, 'APPOINTMENT', `ثبت نوبت ${service.name} با ${doctor.name} — ${new Date(startMs).toISOString().slice(0, 16).replace('T', ' ')}`, { refId: appt.id, actorName: session.fullName })
+  await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'Appointment', entityId: appt.id, branchId: appt.branchId, clinicId: session.clinicId })
+
+  return NextResponse.json({ appointment: appt }, { status: 201 })
 }

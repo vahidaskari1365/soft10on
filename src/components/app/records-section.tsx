@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label'
 import { SectionHeader, Pill, LoadingBlock, EmptyState } from './bits'
 import { formatJDate, faDigits } from '@/lib/jalali'
-import { FolderOpen, Sparkles, AlertTriangle, Baby, Plus, Save } from 'lucide-react'
+import { FolderOpen, Sparkles, AlertTriangle, Baby, Plus, Save, Pill as PillIcon, ClipboardList } from 'lucide-react'
+import { PrescriptionForm, TreatmentPlanForm } from './clinical-forms'
 import { useToast } from '@/hooks/use-toast'
 
 const RECORD_TYPE_FA: Record<string, { label: string; color: string }> = {
@@ -37,6 +38,8 @@ export function RecordsSection({ isPatient, patientName }: { isPatient?: boolean
   const [summary, setSummary] = useState<string | null>(null)
   const [summarizing, setSummarizing] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [rxOpen, setRxOpen] = useState(false)
+  const [planOpen, setPlanOpen] = useState(false)
   const [editProfile, setEditProfile] = useState(false)
 
   useEffect(() => {
@@ -80,7 +83,13 @@ export function RecordsSection({ isPatient, patientName }: { isPatient?: boolean
             </SelectContent>
           </Select>
         )}
-        {!isPatient && selected && <Button className="rounded-xl" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> سند جدید</Button>}
+        {!isPatient && selected && (
+          <div className="flex gap-2">
+            <Button className="rounded-xl" variant="outline" size="sm" onClick={() => setRxOpen(true)}><PillIcon className="h-4 w-4 ml-1" /> نسخه</Button>
+            <Button className="rounded-xl" variant="outline" size="sm" onClick={() => setPlanOpen(true)}><ClipboardList className="h-4 w-4 ml-1" /> طرح درمان</Button>
+            <Button className="rounded-xl" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> سند جدید</Button>
+          </div>
+        )}
       </SectionHeader>
 
       {!isPatient && !selected ? (
@@ -150,6 +159,22 @@ export function RecordsSection({ isPatient, patientName }: { isPatient?: boolean
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>ثبت سند بالینی</DialogTitle></DialogHeader>
           {selected && <RecordForm patientId={selected} onDone={() => { setAddOpen(false); load(selected) }} toast={toast} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* صدور نسخه */}
+      <Dialog open={rxOpen} onOpenChange={setRxOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>صدور نسخه</DialogTitle></DialogHeader>
+          {selected && <PrescriptionForm patientId={selected} onDone={() => { setRxOpen(false); load(selected) }} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* طرح درمان */}
+      <Dialog open={planOpen} onOpenChange={setPlanOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>ثبت طرح درمان</DialogTitle></DialogHeader>
+          {selected && <TreatmentPlanForm patientId={selected} onDone={() => { setPlanOpen(false); load(selected) }} />}
         </DialogContent>
       </Dialog>
 

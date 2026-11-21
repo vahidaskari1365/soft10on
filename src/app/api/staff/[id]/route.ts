@@ -17,6 +17,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.email !== undefined) data.email = body.email ? String(body.email) : null
   if (body.branchId !== undefined) data.branchId = body.branchId ? String(body.branchId) : null
   if (body.active !== undefined) data.active = Boolean(body.active)
+  // فیلدهای تکمیلی پرسنلی
+  if (body.nationalId !== undefined) data.nationalId = body.nationalId ? String(body.nationalId).trim() : null
+  if (body.jobTitle !== undefined) data.jobTitle = body.jobTitle ? String(body.jobTitle).trim().slice(0, 60) : null
+  if (body.hireDate !== undefined) {
+    const d = body.hireDate ? new Date(String(body.hireDate)) : null
+    if (d && isNaN(d.getTime())) return NextResponse.json({ error: 'تاریخ استخدام نامعتبر است' }, { status: 400 })
+    data.hireDate = d
+  }
+  if (body.contractType !== undefined && ['FULL_TIME', 'PART_TIME', 'CONTRACT'].includes(String(body.contractType))) {
+    data.contractType = String(body.contractType)
+  }
+  if (body.baseSalary !== undefined) data.baseSalary = Math.max(0, Math.round(Number(body.baseSalary) || 0))
+  if (body.commissionPercent !== undefined) {
+    const cp = Number(body.commissionPercent)
+    if (!Number.isFinite(cp) || cp < 0 || cp > 100) return NextResponse.json({ error: 'درصد کارانه باید بین ۰ تا ۱۰۰ باشد' }, { status: 400 })
+    data.commissionPercent = cp
+  }
+  if (body.workHours !== undefined) data.workHours = body.workHours ? String(body.workHours).trim().slice(0, 120) : null
   if (body.password) {
     const pass = String(body.password).trim()
     if (pass.length < 6) return NextResponse.json({ error: 'رمز عبور باید حداقل ۶ کاراکتر باشد' }, { status: 400 })

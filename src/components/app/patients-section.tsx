@@ -5,6 +5,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { PatientFormDialog } from './patient-form-dialog'
+import { Upload, Trash2, Pill as PillIcon, Download } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionHeader, Pill, Avatar, EmptyState, LoadingBlock } from './bits'
 import type { Appointment, PatientRow, ProductSale } from './types'
@@ -33,6 +35,10 @@ type PaymentRow = { id: string; date: string; method: string; amount: number; de
 type MessageRow = { id: string; direction: string; channel: string; body: string; createdAt: string; readAt?: string | null; aiGenerated?: boolean }
 type RecordRow = { id: string; date: string; type: string; title: string; content?: string | null; aiSummary?: string | null; doctor?: { name: string } | null }
 
+type DocumentRow = { id: string; title: string; kind: string; sizeBytes: number; createdAt: string; mimeType: string }
+type PrescriptionRow = { id: string; date: string; diagnosis: string | null; doctor?: { name: string }; items: { id: string; drug: string; dose: string | null; frequency: string | null; duration: string | null; method: string | null }[] }
+type EmergencyRow = { id: string; name: string; relation: string; phone: string }
+
 type Detail = {
   history: Appointment[]
   sales: ProductSale[]
@@ -40,6 +46,10 @@ type Detail = {
   payments: PaymentRow[]
   messages: MessageRow[]
   records: RecordRow[]
+  documents: DocumentRow[]
+  prescriptions: PrescriptionRow[]
+  emergencyContacts: EmergencyRow[]
+  patientFull: Record<string, unknown> | null
   totalSpent: number
   totalPaid: number
   totalDebt: number
@@ -74,7 +84,13 @@ export function PatientsSection() {
   const [signal, setSignal] = useState<string>('all')
   const [selected, setSelected] = useState<PatientRow | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const { toast } = useToast()
+
+  const refreshList = () => {
+    fetch('/api/patients').then((r) => r.json()).then((j) => setPatients(j.patients ?? [])).catch(() => {})
+  }
 
   useEffect(() => {
     fetch('/api/patients').then((r) => r.json()).then((j) => setPatients(j.patients ?? [])).catch(() => {})
@@ -92,6 +108,10 @@ export function PatientsSection() {
       payments: j.payments ?? [],
       messages: j.messages ?? [],
       records: j.records ?? [],
+      documents: j.documents ?? [],
+      prescriptions: j.prescriptions ?? [],
+      emergencyContacts: j.emergencyContacts ?? [],
+      patientFull: j.patient ?? null,
       totalSpent: j.totalSpent ?? 0,
       totalPaid: j.totalPaid ?? 0,
       totalDebt: j.totalDebt ?? 0,
@@ -203,14 +223,19 @@ export function PatientsSection() {
         })}
       </div>
 
-      <div className="relative">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="جست‌وجوی نام یا شماره تماس…"
-          className="rounded-xl pr-9"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="جست‌وجوی نام یا شماره تماس…"
+            className="rounded-xl pr-9"
+          />
+        </div>
+        <Button className="rounded-xl shrink-0" size="sm" onClick={() => { setEditing(null); setFormOpen(true) }}>
+          <UserRound className="h-4 w-4 ml-1" /> بیمار جدید
+        </Button>
       </div>
 
       {!patients ? (
@@ -271,10 +296,13 @@ export function PatientsSection() {
               <SheetHeader className="p-0 pb-3">
                 <SheetTitle className="text-right flex items-center gap-3">
                   <Avatar name={`${selected.firstName} ${selected.lastName}`} size={44} />
-                  <div>
+                  <div className="flex-1">
                     <div className="font-bold">{selected.firstName} {selected.lastName}</div>
                     <div className="text-xs text-muted-foreground font-normal" dir="ltr">{faDigits(selected.phone)}</div>
                   </div>
+                  <Button size="sm" variant="outline" className="rounded-lg text-xs" onClick={() => { setEditing(detail?.patientFull ?? { ...selected }); setFormOpen(true) }}>
+                    ویرایش
+                  </Button>
                 </SheetTitle>
               </SheetHeader>
               {!detail ? (
@@ -286,6 +314,7 @@ export function PatientsSection() {
                     <TabsTrigger value="visits">نوبت‌ها</TabsTrigger>
                     <TabsTrigger value="finance">مالی</TabsTrigger>
                     <TabsTrigger value="records">پرونده</TabsTrigger>
+                    <TabsTrigger value="docs">اسناد</TabsTrigger>
                     <TabsTrigger value="messages">پیام‌ها</TabsTrigger>
                     <TabsTrigger value="timeline">تایم‌لاین</TabsTrigger>
                   </TabsList>
@@ -441,6 +470,99 @@ export function PatientsSection() {
                   </TabsContent>
 
                   {/* ——— تایم‌لاین ——— */}
+                  {/* ——— اسناد و نسخه‌ها ——— */}
+                  <TabsContent value="docs" className="space-y-4">
+                    <div>
+                      <div className="text-sm font-bold mb-2 flex items-center justify-between">
+                        <span className="flex items-center gap-1"><FileText className="h-4 w-4" /> اسناد پزشکی</span>
+                        <label className="text-xs text-primary cursor-pointer flex items-center gap-1 hover:underline">
+                          <Upload className="h-3.5 w-3.5" /> آپلود
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.jpg,.jpeg,.png,.webp"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0]
+                              if (!file || !selected) return
+                              if (file.size > 10 * 1024 * 1024) { toast({ title: 'حجم فایل حداکثر ۱۰ مگابایت است', variant: 'destructive' }); return }
+                              const fd = new FormData()
+                              fd.append('file', file)
+                              fd.append('kind', file.name.toLowerCase().endsWith('.pdf') ? 'MEDICAL' : 'IMAGING')
+                              fd.append('title', file.name.slice(0, 100))
+                              const r = await fetch(`/api/patients/${selected.id}/documents`, { method: 'POST', body: fd })
+                              const j = await r.json().catch(() => ({}))
+                              if (r.ok) { toast({ title: 'سند آپلود شد' }); openDetail(selected) }
+                              else toast({ title: String(j.error ?? 'خطا در آپلود'), variant: 'destructive' })
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {(detail?.documents ?? []).length === 0 ? <EmptyState text="سندی ثبت نشده." /> : null}
+                      <div className="space-y-2">
+                        {(detail?.documents ?? []).map((d: { id: string; title: string; kind: string; sizeBytes: number; createdAt: string; mimeType: string }) => (
+                          <div key={d.id} className="rounded-xl border px-3 py-2 flex items-center justify-between gap-2 text-xs">
+                            <div className="min-w-0">
+                              <div className="font-semibold truncate">{d.title}</div>
+                              <div className="text-[10px] text-muted-foreground">{d.kind} · {faDigits(Math.max(1, Math.round(d.sizeBytes / 1024)))} کیلوبایت · {formatJDate(new Date(d.createdAt))}</div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <a href={`/api/documents/${d.id}`} target="_blank" rel="noreferrer" className="rounded-lg border px-2 py-1 hover:bg-muted flex items-center gap-1">
+                                <Download className="h-3 w-3" /> مشاهده
+                              </a>
+                              <button
+                                className="rounded-lg border border-rose-200 text-rose-600 px-2 py-1 hover:bg-rose-50 flex items-center gap-1"
+                                onClick={async () => {
+                                  const r = await fetch(`/api/documents/${d.id}`, { method: 'DELETE' })
+                                  if (r.ok) { toast({ title: 'سند حذف شد' }); openDetail(selected!) }
+                                  else toast({ title: 'حذف مجاز نیست (فقط مدیر یا آپلودکننده)', variant: 'destructive' })
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold mb-2 flex items-center gap-1"><PillIcon className="h-4 w-4" /> نسخه‌های صادرشده</div>
+                      {(detail?.prescriptions ?? []).length === 0 ? <EmptyState text="نسخه‌ای صادر نشده." /> : null}
+                      <div className="space-y-2">
+                        {(detail?.prescriptions ?? []).map((rx: { id: string; date: string; diagnosis: string | null; doctor?: { name: string }; items: { id: string; drug: string; dose: string | null; frequency: string | null; duration: string | null; method: string | null }[] }) => (
+                          <div key={rx.id} className="rounded-xl border px-3 py-2.5 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5 text-primary" /> {rx.doctor?.name ?? 'پزشک'}</span>
+                              <span className="text-[10px] text-muted-foreground">{formatJDate(new Date(rx.date))}</span>
+                            </div>
+                            {rx.diagnosis ? <div className="text-[11px] text-muted-foreground mt-1">تشخیص: {rx.diagnosis}</div> : null}
+                            <div className="mt-1.5 space-y-1">
+                              {rx.items.map((it) => (
+                                <div key={it.id} className="rounded-lg bg-muted/50 px-2 py-1">
+                                  <span className="font-semibold">{it.drug}</span>
+                                  {it.dose ? ` — ${it.dose}` : ''}{it.frequency ? ` · ${it.frequency}` : ''}{it.duration ? ` · ${it.duration}` : ''}{it.method ? ` · ${it.method}` : ''}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {(detail?.emergencyContacts ?? []).length > 0 ? (
+                      <div>
+                        <div className="text-sm font-bold mb-2">تماس اضطراری</div>
+                        <div className="space-y-2">
+                          {(detail?.emergencyContacts ?? []).map((c: { id: string; name: string; relation: string; phone: string }) => (
+                            <div key={c.id} className="rounded-xl border px-3 py-2 text-xs flex items-center justify-between">
+                              <span className="font-semibold">{c.name} ({c.relation})</span>
+                              <span dir="ltr">{faDigits(c.phone)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </TabsContent>
+
                   <TabsContent value="timeline" className="space-y-0">
                     {timeline.length === 0 ? <EmptyState text="رویدادی ثبت نشده." /> : null}
                     <ol className="relative border-r-2 border-border/70 mr-3 space-y-3">
@@ -466,6 +588,17 @@ export function PatientsSection() {
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <PatientFormDialog
+        open={formOpen}
+        setOpen={setFormOpen}
+        editing={editing as Record<string, unknown> & { id?: string } | null}
+        toast={toast}
+        onSaved={() => {
+          refreshList()
+          if (selected) openDetail(selected)
+        }}
+      />
     </div>
   )
 }

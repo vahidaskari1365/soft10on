@@ -4,6 +4,7 @@ import { runToolAgent, type AgentTool } from '@/lib/agents'
 import { requireRole } from '@/lib/auth'
 import { utcDayStart, formatJDate, formatTime } from '@/lib/jalali'
 import { getClinicDNA } from '@/lib/clinic-dna'
+import { rateLimit } from '@/lib/ratelimit'
 import { logAiCall } from '@/lib/ai'
 
 export const maxDuration = 60
@@ -153,6 +154,8 @@ const SYSTEM = `شما «10on» هستید؛ دستیار پزشک هوشمند.
 
 export async function POST(request: Request) {
   const user = await requireRole('DOCTOR')
+  const rl = rateLimit(`ai:{user.id}`, 20, 60_000)
+  if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
   if (!user) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const body = await request.json().catch(() => ({}))

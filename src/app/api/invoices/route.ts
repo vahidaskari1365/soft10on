@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
+import { postJournal, ACC } from '@/lib/ledger'
 import { monthKeyStart, monthKeyEnd, lastNMonthKeys } from '@/lib/jalali'
 import { nextInvoiceNumber, refreshInvoiceStatus } from '@/lib/accounting'
 
@@ -97,21 +98,34 @@ export async function POST(request: Request) {
   const discount = Math.min(Math.max(0, body.discount ?? 0), subtotal)
   const total = subtotal - discount
 
-  const invoice = await db.invoice.create({
-    data: {
-      number: await nextInvoiceNumber(),
-      branchId: body.branchId || session.branchId || null,
-      patientId: body.patientId || null,
-      date: new Date(),
-      status: body.status === 'DRAFT' ? 'DRAFT' : 'ISSUED',
-      subtotal,
-      discount,
-      total,
-      note: body.note?.trim() || null,
-      items: { create: lines },
-    },
-    include: { items: true, patient: { select: { firstName: true, lastName: true, phone: true } } },
-  })
+  // صدور فاکتور + ثبت سند دوبل در یک تراکنش اتمیک
+  const invoice = await db.$transaction(async (tx) => {
+    const inv = await tx.invoice.create({
+      data: {
+        number: await nextInvoiceNumber(tx),
+        branchId: body.branchId || session.branchId || null,
+        patientId: body.patientId || null,
+        date: new Date(),
+        status: body.status === 'DRAFT' ? 'DRAFT' : 'ISSUED',
+        subtotal,
+        discount,
+        total,
+        note: body.note?.trim() || null,
+        items: { create: lines },
+      },
+      include: { items: true, patient: { select: { firstName: true, lastName: true, phone: true } } },
+    })
+    if (inv.status === 'ISSUED' && inv.total > 0) {
+      // بدهکار: حساب‌های دریافتنی (کل) | بستانکار: درآمد خدمات | بدهکار: تخفیف فروش
+      const jLines: { code: string; debit?: number; credit?: number; detail?: string }[] = [
+        { code: ACC.AR, debit: inv.total, detail: `فاکتور ${inv.number}` },
+      ]
+      if (inv.subtotal > 0) jLines.push({ code: ACC.SERVICE_REVENUE, credit: inv.subtotal, detail: `فاکتور ${inv.number}` })
+      if (inv.discount > 0) jLines.push({ code: ACC.SALES_DISCOUNT, debit: inv.discount, detail: `تخفیف فاکتور ${inv.number}` })
+      await postJournal(tx, { memo: `صدور فاکتور شماره ${inv.number}`, refType: 'INVOICE', refId: inv.id, branchId: inv.branchId, createdById: session.id, lines: jLines })
+    }
+    return inv
+  }, { timeout: 20_000, maxWait: 10_000 })
   void refreshInvoiceStatus(invoice.id)
   return NextResponse.json({ invoice }, { status: 201 })
 }

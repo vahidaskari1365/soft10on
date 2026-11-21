@@ -4,6 +4,7 @@ import { runToolAgent, type AgentTool, type AgentStep } from '@/lib/agents'
 import { requireRole } from '@/lib/auth'
 import { utcDayStart, formatJDate, formatTime, formatDayRelative, weekdayName, faDigits } from '@/lib/jalali'
 import { formatToman, APPOINTMENT_STATUS } from '@/lib/format'
+import { rateLimit } from '@/lib/ratelimit'
 import { cashBalances } from '@/lib/accounting'
 import { getClinicDNA } from '@/lib/clinic-dna'
 import { logAiCall } from '@/lib/ai'
@@ -379,6 +380,8 @@ async function fallback(userMessage: string): Promise<{ answer: string; steps: A
 
 export async function POST(request: Request) {
   const user = await requireRole('ADMIN', 'RECEPTIONIST')
+  const rl = rateLimit(`ai:{user.id}`, 20, 60_000)
+  if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
   if (!user) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const body = await request.json().catch(() => ({}))

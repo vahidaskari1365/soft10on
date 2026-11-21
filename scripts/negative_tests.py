@@ -93,6 +93,26 @@ T = [
     ('staff_list',           'GET',    '/api/staff',                           None, [401,401,403,200,403,200]),
     ('staff_post_empty',     'POST',   '/api/staff',                           {},   [401,401,403,403,403,400]),
     ('invoices_list',        'GET',    '/api/invoices',                        None, [401,401,403,200,200,200]),
+    # — مسیرهای جدید فاز تکمیل —
+    ('rooms_list',           'GET',    '/api/rooms',                           None, [401,401,403,200,200,200]),
+    ('rooms_post_empty',     'POST',   '/api/rooms',                           {},   [401,401,403,403,403,400]),
+    ('holidays_list',        'GET',    '/api/holidays',                        None, [401,401,403,200,200,200]),
+    ('holidays_post_empty',  'POST',   '/api/holidays',                        {},   [401,401,403,403,403,400]),
+    ('ledger_trial',         'GET',    '/api/ledger?view=trial',               None, [401,401,403,200,403,200]),
+    ('ledger_post_empty',    'POST',   '/api/ledger',                          {},   [401,401,403,403,403,400]),
+    ('prescriptions_list',   'GET',    '/api/prescriptions',                   None, [401,401,200,401,401,401]),
+    ('prescriptions_post_empty', 'POST', '/api/prescriptions',               {},   [401,401,403,403,400,400]),
+    ('treatments_list',      'GET',    '/api/treatments',                      None, [401,401,200,401,401,401]),
+    ('treatments_post_empty','POST',   '/api/treatments',                      {},   [401,401,403,403,400,400]),
+    ('audit_list',           'GET',    '/api/audit',                           None, [401,401,403,403,403,200]),
+    ('services_list',        'GET',    '/api/services',                        None, [401,401,403,200,200,200]),
+    ('services_post_empty',  'POST',   '/api/services',                        {},   [401,401,403,403,403,400]),
+    ('plans_list',           'GET',    '/api/plans',                           None, [401,401,403,200,200,200]),
+    ('tickets_list',         'GET',    '/api/tickets',                         None, [401,401,403,200,200,200]),
+    ('patient_docs_list',    'GET',    f'/api/patients/{other_pid}/documents', None, [401,401,403,200,200,200]),
+    ('patient_timeline',     'GET',    f'/api/patients/{other_pid}/timeline',  None, [401,401,403,200,200,200]),
+    ('patient_emergency',    'GET',    f'/api/patients/{other_pid}/emergency', None, [401,401,403,200,200,200]),
+    ('appt_history',         'GET',    f'/api/appointments/{appt_id}/history', None, [401,401,403,200,200,200]),
 ]
 
 rows, passed, failed = [], 0, 0

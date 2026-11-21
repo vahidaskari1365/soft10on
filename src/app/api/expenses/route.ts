@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth'
+import { postJournal, ACC } from '@/lib/ledger'
 import { db } from '@/lib/db'
 
 export async function GET() {
@@ -24,8 +25,25 @@ export async function POST(request: Request) {
     dt = new Date(date)
     if (isNaN(dt.getTime())) return NextResponse.json({ error: 'تاریخ نامعتبر است' }, { status: 400 })
   }
-  const expense = await db.expense.create({
-    data: { category: category.trim(), amount: amt, description: description ?? 'ثبت دستی', date: dt },
-  })
+  const cat = category.trim().toUpperCase()
+  const expenseCode = cat === 'RENT' ? ACC.RENT : cat === 'SALARY' ? ACC.SALARY : ACC.OTHER_EXPENSE
+  const expense = await db.$transaction(async (tx) => {
+    const exp = await tx.expense.create({
+      data: { category: category.trim(), amount: amt, description: description ?? 'ثبت دستی', date: dt, branchId: session.branchId },
+    })
+    // بدهکار: حساب هزینه | بستانکار: صندوق/بانک
+    await postJournal(tx, {
+      memo: `هزینه ${category.trim()} — ${description ?? ''}`.trim(),
+      refType: 'EXPENSE',
+      refId: exp.id,
+      branchId: session.branchId,
+      createdById: session.id,
+      lines: [
+        { code: expenseCode, debit: amt, detail: category.trim() },
+        { code: ACC.CASH, credit: amt, detail: 'پرداخت هزینه از صندوق' },
+      ],
+    })
+    return exp
+  }, { timeout: 20_000, maxWait: 10_000 })
   return NextResponse.json({ expense })
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -272,7 +273,10 @@ function AddAppointmentDialog({
   const [serviceId, setServiceId] = useState<string>('')
   const [hour, setHour] = useState<string>('10')
   const [minute, setMinute] = useState<string>('00')
+  const [reason, setReason] = useState<string>('')
+  const [deposit, setDeposit] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
   // فهرست بیماران/پزشکان/خدمات از طریق props از والد می‌آید و اینجا بارگیری مجدد نمی‌شود
 
   const submit = async () => {
@@ -282,18 +286,26 @@ function AddAppointmentDialog({
     }
     setSaving(true)
     const start = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), Number(hour), Number(minute), 0, 0))
+    if (isNaN(start.getTime())) { setErr('زمان انتخابی نامعتبر است'); setSaving(false); return }
     const r = await fetch('/api/appointments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ patientId, doctorId, serviceId, start: start.toISOString(), source: 'PANEL' }),
+      body: JSON.stringify({
+        patientId, doctorId, serviceId, start: start.toISOString(), source: 'PANEL',
+        reason: reason.trim() || undefined,
+        deposit: deposit ? Math.max(0, Math.round(Number(deposit) || 0)) : undefined,
+      }),
     })
     setSaving(false)
+    const j = await r.json().catch(() => ({}))
     if (r.ok) {
       toast({ title: 'نوبت ثبت شد', description: `${formatJDate(day)} ساعت ${faDigits(hour + ':' + minute)}` })
       setOpen(false)
       onDone()
     } else {
-      toast({ title: 'خطا در ثبت نوبت', variant: 'destructive' })
+      const msg = String(j.error ?? 'خطا در ثبت نوبت')
+      setErr(msg)
+      toast({ title: msg, variant: 'destructive' })
     }
   }
 
@@ -361,17 +373,26 @@ function AddAppointmentDialog({
               <Select value={minute} onValueChange={setMinute}>
                 <SelectTrigger className="w-full rounded-xl mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent dir="ltr">
-                  {['00', '30'].map((m) => (
+                  {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map((m) => (
                     <SelectItem key={m} value={m}>{faDigits(m)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">علت مراجعه</label>
+            <Input className="rounded-xl mt-1" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="مثلاً: درد دندان عقل" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">بیعانه (تومان)</label>
+            <Input className="rounded-xl mt-1" dir="ltr" value={deposit} onChange={(e) => setDeposit(e.target.value.replace(/\D/g, ''))} placeholder="0" />
+          </div>
+          {err ? <div className="text-xs text-rose-600 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2">{err}</div> : null}
           <Button className="w-full rounded-xl" onClick={submit} disabled={saving}>
             {saving ? 'در حال ثبت…' : 'ثبت نوبت'}
           </Button>
-          <p className="text-[11px] text-muted-foreground">نوبت جدید با وضعیت «در انتظار تأیید» در تقویم و کارتابل پذیرش ثبت می‌شود.</p>
+          <p className="text-[11px] text-muted-foreground">تداخل پزشک و اتاق، تعطیلات و ساعات کاری شعبه به‌صورت خودکار کنترل می‌شود. یادآوری پیامکی در وضعیت «در انتظار ارسال» ثبت می‌گردد.</p>
         </div>
       </DialogContent>
     </Dialog>

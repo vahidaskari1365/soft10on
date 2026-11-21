@@ -76,8 +76,10 @@ export async function cashBalances(branchId?: string | null) {
 export type CashBalance = Awaited<ReturnType<typeof cashBalances>>[number]
 
 /** شماره فاکتور بعدی */
-export async function nextInvoiceNumber(): Promise<number> {
-  const last = await db.invoice.findFirst({ orderBy: { number: 'desc' }, select: { number: true } })
+import { Prisma } from '@prisma/client'
+
+export async function nextInvoiceNumber(tx?: Prisma.TransactionClient): Promise<number> {
+  const last = await (tx ?? db).invoice.findFirst({ orderBy: { number: 'desc' }, select: { number: true } })
   return (last?.number ?? 14000) + 1
 }
 

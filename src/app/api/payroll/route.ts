@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
+import { postJournal, ACC } from '@/lib/ledger'
 import { lastNMonthKeys } from '@/lib/jalali'
 import { doctorCommissions } from '@/lib/accounting'
 
@@ -131,8 +132,9 @@ export async function POST(request: Request) {
   })
 
   if (body.action === 'pay') {
-    await db.payroll.update({ where: { id: payroll.id }, data: { status: 'PAID', paidAt: new Date(), method: body.method ?? 'TRANSFER' } })
-    await db.payment.create({
+    await db.$transaction(async (tx) => {
+      await tx.payroll.update({ where: { id: payroll.id }, data: { status: 'PAID', paidAt: new Date(), method: body.method ?? 'TRANSFER' } })
+      await tx.payment.create({
       data: {
         branchId: payroll.branchId,
         date: new Date(),
@@ -145,15 +147,30 @@ export async function POST(request: Request) {
         refId: payroll.id,
       },
     })
-    await db.expense.create({
-      data: {
-        branchId: payroll.branchId,
-        date: new Date(),
-        category: 'SALARY',
-        amount: payroll.total,
-        description: `حقوق و کارانه ${payroll.staffName} — ${monthKey}`,
-      },
-    })
+      await tx.expense.create({
+        data: {
+          branchId: payroll.branchId,
+          date: new Date(),
+          category: 'SALARY',
+          amount: payroll.total,
+          description: `حقوق و کارانه ${payroll.staffName} — ${monthKey}`,
+        },
+      })
+      // بدهکار: هزینه حقوق | بستانکار: بانک/صندوق
+      if (payroll.total > 0) {
+        await postJournal(tx, {
+          memo: `پرداخت حقوق ${payroll.staffName} — ${monthKey}`,
+          refType: 'PAYROLL',
+          refId: payroll.id,
+          branchId: payroll.branchId,
+          createdById: session.id,
+          lines: [
+            { code: ACC.SALARY, debit: payroll.total, detail: payroll.staffName },
+            { code: body.method === 'CASH' ? ACC.CASH : ACC.BANK, credit: payroll.total, detail: payroll.staffName },
+          ],
+        })
+      }
+    }, { timeout: 20_000, maxWait: 10_000 })
     return NextResponse.json({ ok: true, paid: true, total: payroll.total })
   }
 
