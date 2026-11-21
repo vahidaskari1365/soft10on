@@ -7,9 +7,9 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  // گنجاندن دیتابیس بذر داخل باندل توابع سرورلس (برای استقرار روی Vercel)
+  // گنجاندن دیتابیس بذر و اتصال production داخل باندل توابع سرورلس (Vercel)
   outputFileTracingIncludes: {
-    "/api/**/*": ["./db/seed.db"],
+    "/api/**/*": ["./db/seed.db", "./db/production.json"],
   },
 };
 

@@ -41,6 +41,19 @@ function bootstrapDatabase() {
     return
   }
 
+  // اتصال production کامیت‌شده (db/production.json) — برای هاست‌هایی که
+  // متغیر محیطی قابل تنظیم نیست. این اتصال از نقش کم‌دسترسی tenon_app
+  // استفاده می‌کند (فقط CRUD روی جداول public؛ بدون DDL و دسترسی مدیریتی).
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'db', 'production.json'), 'utf8'))
+    if (cfg?.url?.startsWith('postgres')) {
+      process.env.DATABASE_URL = cfg.url
+      return
+    }
+  } catch {
+    // فایل وجود ندارد؛ ادامه با منطق SQLite
+  }
+
   const filePart = url.startsWith('file:') ? url.slice('file:'.length) : ''
 
   // آیا فایل تنظیم‌شده وجود دارد؟ (نسبت به ریشه پروژه و پوشه prisma)
