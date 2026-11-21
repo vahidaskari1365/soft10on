@@ -14,11 +14,32 @@ import { PrismaClient } from '@prisma/client'
 // DATABASE_URL به همان مسیر تغییر می‌کند.
 // ------------------------------------------------------------------
 
+/** خواندن DATABASE_URL از فایل‌های env پروژه (برای محیط‌هایی که متغیر ناسازگار تزریق می‌کنند) */
+function envFileUrl(): string | null {
+  for (const f of ['.env.local', '.env']) {
+    try {
+      const raw = fs.readFileSync(path.join(process.cwd(), f), 'utf8')
+      const m = raw.match(/^DATABASE_URL="?([^"\n]+)"?/m)?.[1]
+      if (m) return m
+    } catch {
+      // فایل وجود ندارد؛ فایل بعدی
+    }
+  }
+  return null
+}
+
 function bootstrapDatabase() {
   const url = process.env.DATABASE_URL ?? ''
 
   // PostgreSQL/Supabase — بدون بوت‌استرپ
   if (url.startsWith('postgres')) return
+
+  // متغیر وراثتی ناسازگار (file:) → اولویت با PostgreSQL داخل .env پروژه
+  const fromEnvFile = envFileUrl()
+  if (fromEnvFile?.startsWith('postgres')) {
+    process.env.DATABASE_URL = fromEnvFile
+    return
+  }
 
   const filePart = url.startsWith('file:') ? url.slice('file:'.length) : ''
 
