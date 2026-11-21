@@ -8,14 +8,64 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Checkbox } from '@/components/ui/checkbox'
 import { SectionHeader, LoadingBlock, EmptyState, Avatar } from '../bits'
 import type { StaffUser, BranchInfo } from '../types'
 import { faDigits, formatJDate } from '@/lib/jalali'
 import { ROLE_LABEL } from '@/lib/format'
 import { UserCog, Plus, KeyRound, Power, ShieldCheck, Stethoscope, Headset, UserRound, Loader2 } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 const ROLE_ICON: Record<string, typeof UserCog> = { ADMIN: ShieldCheck, DOCTOR: Stethoscope, RECEPTIONIST: Headset, PATIENT: UserRound }
 const ROLE_COLOR: Record<string, string> = { ADMIN: '#0284C7', DOCTOR: '#B08D57', RECEPTIONIST: '#0D9488', PATIENT: '#EA580C' }
+
+// ————— ماتریس دسترسی جزئی (RBAC) —————
+// تا افزودن فیلد permissions در دیتابیس، تنظیمات در localStorage نگه‌داری می‌شود (نمایشی)
+const PERM_MODULES = [
+  { key: 'dashboard', label: 'داشبورد' },
+  { key: 'appointments', label: 'نوبت‌ها و تقویم' },
+  { key: 'patients', label: 'بیماران (CRM)' },
+  { key: 'records', label: 'پرونده پزشکی' },
+  { key: 'finance', label: 'حسابداری' },
+  { key: 'reports', label: 'گزارش‌ها' },
+  { key: 'inventory', label: 'انبار' },
+  { key: 'staff', label: 'پرسنل' },
+  { key: 'settings', label: 'تنظیمات' },
+  { key: 'ai', label: 'دستیار هوشمند' },
+] as const
+
+const PERM_ACTIONS = [
+  { key: 'view', label: 'مشاهده' },
+  { key: 'create', label: 'ایجاد' },
+  { key: 'edit', label: 'ویرایش' },
+  { key: 'delete', label: 'حذف' },
+  { key: 'export', label: 'خروجی' },
+] as const
+
+type Perms = Record<string, Record<string, string[]>>
+
+const PERMS_STORAGE = 'tenon-perms'
+
+function loadPerms(): Perms {
+  try {
+    return JSON.parse(localStorage.getItem(PERMS_STORAGE) ?? '{}') as Perms
+  } catch {
+    return {}
+  }
+}
+
+const DEFAULT_ACTION_FOR_ROLE: Record<string, string[]> = {
+  ADMIN: ['view', 'create', 'edit', 'delete', 'export'],
+  RECEPTIONIST: ['view', 'create', 'edit'],
+  DOCTOR: ['view', 'edit'],
+  PATIENT: ['view'],
+}
+
+function defaultPermsFor(userId: string, role: string): Record<string, string[]> {
+  const base: Record<string, string[]> = {}
+  for (const m of PERM_MODULES) base[m.key] = [...(DEFAULT_ACTION_FOR_ROLE[role] ?? ['view'])]
+  return base
+}
 
 type FormState = {
   fullName: string
@@ -40,6 +90,9 @@ export function StaffSection() {
   const [error, setError] = useState<string | null>(null)
   const [pwTarget, setPwTarget] = useState<StaffUser | null>(null)
   const [newPass, setNewPass] = useState('')
+  const [permTarget, setPermTarget] = useState<StaffUser | null>(null)
+  const [perms, setPerms] = useState<Perms>({})
+  const { toast } = useToast()
 
   const load = useCallback(() => {
     fetch('/api/staff').then((r) => r.json()).then((d) => setUsers(d.users ?? [])).catch(() => setUsers([]))
@@ -97,6 +150,39 @@ export function StaffSection() {
       }
     } finally {
       setSaving(false)
+    }
+  }
+
+  function openPerms(u: StaffUser) {
+    const all = loadPerms()
+    if (!all[u.id]) all[u.id] = defaultPermsFor(u.id, u.role)
+    setPerms(all)
+    setPermTarget(u)
+  }
+
+  function togglePerm(userId: string, moduleKey: string, action: string) {
+    setPerms((prev) => {
+      const cur = prev[userId]?.[moduleKey] ?? []
+      const next = cur.includes(action) ? cur.filter((a) => a !== action) : [...cur, action]
+      return { ...prev, [userId]: { ...prev[userId], [moduleKey]: next } }
+    })
+  }
+
+  function setModuleAll(userId: string, moduleKey: string, on: boolean) {
+    setPerms((prev) => ({
+      ...prev,
+      [userId]: { ...prev[userId], [moduleKey]: on ? PERM_ACTIONS.map((a) => a.key) : [] },
+    }))
+  }
+
+  function savePerms() {
+    if (!permTarget) return
+    try {
+      localStorage.setItem(PERMS_STORAGE, JSON.stringify(perms))
+      toast({ title: 'دسترسی‌ها ذخیره شد', description: `${permTarget.fullName} — اعمال از ورود بعدی` })
+      setPermTarget(null)
+    } catch {
+      toast({ title: 'ذخیره ناموفق بود' })
     }
   }
 
@@ -169,6 +255,9 @@ export function StaffSection() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5 justify-start">
+                            <Button variant="ghost" size="sm" className="h-8 rounded-lg" title="ماتریس دسترسی" onClick={() => openPerms(u)}>
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                            </Button>
                             <Button variant="ghost" size="sm" className="h-8 rounded-lg" onClick={() => { setPwTarget(u); setNewPass('') }}>
                               <KeyRound className="h-3.5 w-3.5" />
                             </Button>
@@ -281,6 +370,64 @@ export function StaffSection() {
             <Button onClick={resetPassword} disabled={saving || newPass.length < 6}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'تغییر رمز'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* RBAC permission matrix */}
+      <Dialog open={permTarget !== null} onOpenChange={(v) => !v && setPermTarget(null)}>
+        <DialogContent className="sm:max-w-3xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-sky-600" />
+              دسترسی‌های {permTarget?.fullName}
+              <span className="rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 text-[10px] px-2 py-0.5 font-normal">نمایشی — ذخیره محلی</span>
+            </DialogTitle>
+          </DialogHeader>
+          {permTarget ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs min-w-[560px]">
+                <thead>
+                  <tr className="text-muted-foreground border-b">
+                    <th className="py-2 text-right font-medium">ماژول</th>
+                    {PERM_ACTIONS.map((a) => (
+                      <th key={a.key} className="py-2 text-center font-medium">{a.label}</th>
+                    ))}
+                    <th className="py-2 text-center font-medium">همه</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PERM_MODULES.map((m) => {
+                    const cur = perms[permTarget.id]?.[m.key] ?? []
+                    const all = cur.length === PERM_ACTIONS.length
+                    return (
+                      <tr key={m.key} className="border-b last:border-b-0">
+                        <td className="py-2 font-semibold">{m.label}</td>
+                        {PERM_ACTIONS.map((a) => (
+                          <td key={a.key} className="py-2 text-center">
+                            <Checkbox
+                              checked={cur.includes(a.key)}
+                              onCheckedChange={() => togglePerm(permTarget.id, m.key, a.key)}
+                              aria-label={`${m.label} — ${a.label}`}
+                            />
+                          </td>
+                        ))}
+                        <td className="py-2 text-center">
+                          <Checkbox checked={all} onCheckedChange={(v) => setModuleAll(permTarget.id, m.key, v === true)} aria-label={`${m.label} — همه دسترسی‌ها`} />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          <div className="text-[11px] text-muted-foreground leading-5">
+            پیش‌فرض هر نقش به‌صورت خودکار اعمال شده؛ می‌توانید برای هر ماژول دسترسی مشاهده/ایجاد/ویرایش/حذف/خروجی را مستقل تنظیم کنید.
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPermTarget(null)}>انصراف</Button>
+            <Button onClick={savePerms}>ذخیره دسترسی‌ها</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

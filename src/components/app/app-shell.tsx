@@ -9,12 +9,13 @@ import {
   LayoutDashboard, CalendarDays, Inbox, Bot, Users, Wallet, Sparkles, LogOut,
   Building2, UserCog, Stethoscope, UserRound, BrainCircuit, Headset, ChevronLeft,
   MessageSquare, FolderOpen, Hourglass, Settings, Globe, RefreshCw, ClipboardList,
-  PanelRightClose, PanelRightOpen, Home, BarChart3,
+  PanelRightClose, PanelRightOpen, Home, BarChart3, Cloud,
 } from 'lucide-react'
 import { ThemeToggle } from './theme-toggle'
 import { GlobalSearch } from './global-search'
 import { NotificationCenter } from './notification-center'
 import { ReportsSection } from './reports-section'
+import { SaasSection } from './saas-section'
 import { LoginScreen } from './login-screen'
 import { DashboardSection } from './dashboard-section'
 import { AppointmentsSection } from './appointments-section'
@@ -48,6 +49,7 @@ const NAV_ADMIN: NavItem[] = [
   { key: 'records', label: 'پرونده هوشمند', icon: FolderOpen },
   { key: 'finance', label: 'حسابداری و انبار', icon: Wallet },
   { key: 'reports', label: 'گزارش‌ها', icon: BarChart3 },
+  { key: 'platform', label: 'پنل پلتفرم', icon: Cloud },
   { key: 'agent', label: 'دستیار مدیریتی', icon: BrainCircuit },
   { key: 'settings', label: 'تنظیمات سامانه', icon: Settings },
 ]
@@ -89,7 +91,7 @@ function ShieldIcon(props: { className?: string }) {
 
 /** میان‌برهای داشبورد برای هر نقش (کلیک روی آیکن = پرش به همان بخش) */
 const QUICK_KEYS: Record<string, string[]> = {
-  ADMIN: ['appointments', 'waitlist', 'tasks', 'messages', 'patients', 'records', 'finance', 'reports', 'branches', 'staff', 'agent', 'settings'],
+  ADMIN: ['appointments', 'waitlist', 'tasks', 'messages', 'patients', 'records', 'finance', 'reports', 'platform', 'branches', 'staff', 'agent', 'settings'],
   RECEPTIONIST: ['appointments', 'waitlist', 'tasks', 'messages', 'patients', 'records', 'agent'],
 }
 
@@ -294,6 +296,7 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
             {section === 'patients' && <PatientsSection />}
             {section === 'finance' && <FinanceSection />}
             {section === 'reports' && user.role === 'ADMIN' && <ReportsSection />}
+            {section === 'platform' && user.role === 'ADMIN' && <SaasSection />}
             {section === 'branches' && <BranchesSection />}
             {section === 'staff' && <StaffSection />}
             {section === 'agent' && (user.role === 'ADMIN'
