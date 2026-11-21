@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
+import { getSessionUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 export async function GET() {
+  const session = await getSessionUser()
+  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const expenses = await db.expense.findMany({ orderBy: { date: 'desc' }, take: 40 })
   return NextResponse.json({ expenses })
 }

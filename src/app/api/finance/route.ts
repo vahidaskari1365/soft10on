@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getSessionUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { monthlySeries } from '@/lib/finance'
 import { monthKeyStart, monthKeyEnd, lastNMonthKeys } from '@/lib/jalali'
@@ -6,6 +7,8 @@ import { cashBalances } from '@/lib/accounting'
 import { EXPENSE_CATEGORY_LABEL } from '@/lib/format'
 
 export async function GET(request: Request) {
+  const session = await getSessionUser()
+  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
   const valid = /^\d{4}-(0[1-9]|1[0-2])$/.test(raw ?? '')

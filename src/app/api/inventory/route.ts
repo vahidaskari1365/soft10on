@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
+import { getSessionUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 export async function GET() {
+  const session = await getSessionUser()
+  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const [products, purchases, sales] = await Promise.all([
     db.product.findMany({ orderBy: { name: 'asc' }, include: { branch: { select: { name: true } } } }),
     db.purchase.findMany({ include: { items: { include: { product: true } }, branch: { select: { name: true } } }, orderBy: { date: 'desc' }, take: 8 }),
