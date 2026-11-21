@@ -17,7 +17,16 @@ export async function GET() {
     include: { doctors: true, users: true },
   })
 
-  const out = []
+  type BranchSummary = {
+      id: string; code: string; name: string; city: string; address: string; phone: string
+      openHour: number; closeHour: number; thuCloseHour: number | null; closedFri: boolean; isActive: boolean
+      doctorCount: number; staffCount: number
+      doctors: { id: string; name: string; specialty: string; color: string }[]
+      appointmentsMonth: number; revenueMonth: number; revenueMonthFa: string
+      expensesMonth: number
+      todayPending: number
+    }
+    const out: BranchSummary[] = []
   for (const b of branches) {
     const [apptsMonth, done, expenses, todayStart] = await Promise.all([
       db.appointment.count({ where: { branchId: b.id, start: { gte: start, lt: end } } }),
@@ -60,7 +69,8 @@ export async function GET() {
 /** ایجاد شعبه جدید — فقط مدیر کل */
 export async function POST(request: Request) {
   const user = await getSessionUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
+  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
 
   const body = await request.json().catch(() => ({}))
   const code = String(body.code ?? '').trim().toUpperCase()

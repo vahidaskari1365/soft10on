@@ -6,7 +6,8 @@ import { utcDayStart } from '@/lib/jalali'
 /** یادآوری‌های خودکار — کارتابل هوشمند منشی و مدیر */
 export async function GET() {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const now = new Date()
   const tomorrowStart = new Date(utcDayStart(now).getTime() + 24 * 3600 * 1000)

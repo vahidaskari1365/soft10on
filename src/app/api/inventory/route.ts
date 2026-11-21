@@ -4,7 +4,8 @@ import { db } from '@/lib/db'
 
 export async function GET() {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const [products, purchases, sales] = await Promise.all([
     db.product.findMany({ orderBy: { name: 'asc' }, include: { branch: { select: { name: true } } } }),
     db.purchase.findMany({ include: { items: { include: { product: true } }, branch: { select: { name: true } } }, orderBy: { date: 'desc' }, take: 8 }),
@@ -15,6 +16,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await getSessionUser()
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = await request.json()
   const { supplier, items } = body as { supplier: string; items: { productId: string; qty: number; unitPrice?: number }[] }
   if (!supplier || !items?.length) return NextResponse.json({ error: 'اطلاعات ناقص' }, { status: 400 })

@@ -1,10 +1,28 @@
 import { cookies } from 'next/headers'
-import { createHmac } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
 import { db } from '@/lib/db'
 
 const COOKIE = 'sina_session'
-const SECRET = process.env.AUTH_SECRET ?? 'sina-demo-secret-1404'
 const MAX_AGE = 60 * 60 * 24 * 30 // ۳۰ روز
+
+const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
+
+/**
+ * Secret نشست — فقط از متغیر محیطی.
+ * Production بدون AUTH_SECRET (حداقل ۳۲ کاراکتر) باید امن متوقف شود؛
+ * secret پیش‌فرض ثابت وجود ندارد. fallback فقط برای توسعه محلی است.
+ */
+function getSecret(): string {
+  const s = process.env.AUTH_SECRET
+  if (s && s.length >= 32) return s
+  if (isProduction) {
+    throw new Error(
+      'CONFIGURATION ERROR: AUTH_SECRET environment variable (min 32 chars) is required in production. ' +
+        'Set it in the hosting provider before deploying.'
+    )
+  }
+  return 'tenon-dev-only-fallback-secret—FORBIDDEN-IN-PRODUCTION'
+}
 
 export type SessionUser = {
   id: string
@@ -21,20 +39,33 @@ export type SessionUser = {
   patientName: string | null
 }
 
-function sign(value: string): string {
-  return createHmac('sha256', SECRET).update(value).digest('hex').slice(0, 32)
+/** HMAC-SHA256 با secret محیطی */
+function sign(payload: string): string {
+  return createHmac('sha256', getSecret()).update(payload).digest('base64url')
 }
 
+/** توکن نشست: userId.issuedAtMs.signature — امضا شامل زمان صدور است */
 export function makeToken(userId: string): string {
-  return `${userId}.${sign(userId)}`
+  const payload = `${userId}.${Date.now()}`
+  return `${payload}.${sign(payload)}`
 }
 
 function parseToken(token: string): string | null {
-  const idx = token.lastIndexOf('.')
-  if (idx < 0) return null
-  const userId = token.slice(0, idx)
-  const sig = token.slice(idx + 1)
-  return sign(userId) === sig ? userId : null
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+  const [userId, issuedAt, sig] = parts
+  const payload = `${userId}.${issuedAt}`
+  const expected = sign(payload)
+  try {
+    const a = Buffer.from(sig)
+    const b = Buffer.from(expected)
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null
+  } catch {
+    return null
+  }
+  const issued = Number(issuedAt)
+  if (!Number.isFinite(issued) || issued <= 0 || Date.now() - issued > MAX_AGE * 1000) return null
+  return userId
 }
 
 export function toSessionUser(u: {
@@ -67,7 +98,7 @@ export function toSessionUser(u: {
   }
 }
 
-/** خواندن کاربر جاری از کوکی (فقط در Server / Route Handler) */
+/** خواندن کاربر جاری از کوکی (فقط در Server / Route Handler) — کاربر غیرفعال یا توکن نامعتبر رد می‌شود */
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
     const store = await cookies()
@@ -91,6 +122,7 @@ export async function setSessionCookie(userId: string) {
   store.set(COOKIE, makeToken(userId), {
     httpOnly: true,
     sameSite: 'lax',
+    secure: isProduction,
     path: '/',
     maxAge: MAX_AGE,
   })
@@ -98,7 +130,7 @@ export async function setSessionCookie(userId: string) {
 
 export async function clearSessionCookie() {
   const store = await cookies()
-  store.set(COOKIE, '', { httpOnly: true, path: '/', maxAge: 0 })
+  store.set(COOKIE, '', { httpOnly: true, sameSite: 'lax', secure: isProduction, path: '/', maxAge: 0 })
 }
 
 export const ROLE_FA: Record<string, string> = {

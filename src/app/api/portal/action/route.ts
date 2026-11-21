@@ -7,7 +7,8 @@ import { formatDayRelative, formatJDate, formatTime } from '@/lib/jalali'
 /** اقدامات بیمار: لغو نوبت، ویرایش پروفایل، تغییر رمز */
 export async function POST(request: Request) {
   const user = await requireRole('PATIENT')
-  if (!user || !user.patientId) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (!user.patientId) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const body = await request.json().catch(() => ({}))
   const action = String(body.action ?? '')

@@ -37,6 +37,7 @@ export interface Appointment {
   patient: PatientLite
   doctor: Doctor
   service: Service
+  branch?: { id: string; name: string } | null
 }
 
 export interface TaskItem {

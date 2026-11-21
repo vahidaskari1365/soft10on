@@ -8,7 +8,8 @@ import { EXPENSE_CATEGORY_LABEL } from '@/lib/format'
 
 export async function GET(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
   const valid = /^\d{4}-(0[1-9]|1[0-2])$/.test(raw ?? '')

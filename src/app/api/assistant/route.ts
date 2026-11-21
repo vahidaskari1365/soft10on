@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { faDigits, formatJDate, formatTime, formatDayRelative, weekdayName } from '@/lib/jalali'
 import { formatToman } from '@/lib/format'
 import { llmChat, extractJSON } from '@/lib/ai'
+import { doctorHasConflict } from '@/lib/scheduling'
+import { getSessionUser } from '@/lib/auth'
 
 export const maxDuration = 60
 
@@ -149,6 +151,8 @@ ${facts.services.join(' | ')}
 }
 
 export async function POST(request: Request) {
+  const session = await getSessionUser()
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
   const body = await request.json()
   const action = body.action as 'text' | 'slots' | 'book' | 'prices' | 'services' | 'greet' | 'choose_service'
   const text = body.text as string | undefined
@@ -282,6 +286,13 @@ export async function POST(request: Request) {
     const doctor = ctx.doctorId
       ? await db.doctor.findUnique({ where: { id: ctx.doctorId } })
       : (await freeSlots(null, ctx.serviceId)).doctor
+
+    if (await doctorHasConflict(doctor!.id, startDt.getTime(), svc.durationMin)) {
+      return NextResponse.json({
+        bubbles: [{ text: 'این بازه تازه پر شده است. لطفاً بازه دیگری انتخاب کنید.', kind: 'warn' }] as BotMessage[],
+        ctx,
+      })
+    }
 
     const appt = await db.appointment.create({
       data: {

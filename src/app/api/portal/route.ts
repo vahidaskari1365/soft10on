@@ -6,7 +6,8 @@ import { formatToman } from '@/lib/format'
 /** پرتال بیمار: نوبت‌های من، پرداخت‌های من، اطلاعات من */
 export async function GET() {
   const user = await requireRole('PATIENT')
-  if (!user || !user.patientId) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (!user.patientId) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const now = new Date()
   const [patient, upcoming, past, sales, branches] = await Promise.all([

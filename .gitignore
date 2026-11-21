@@ -61,5 +61,6 @@ server.log
 /download/
 /upload/
 /.zscripts/
-/scripts/
+/scripts/*
+!/scripts/*.py
 /agent-ctx/

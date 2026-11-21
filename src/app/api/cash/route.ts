@@ -6,7 +6,8 @@ import { cashBalances } from '@/lib/accounting'
 /** صندوق‌ها و حساب‌های بانکی با موجودی زنده + آخرین تراکنش‌ها */
 export async function GET(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const branchId = searchParams.get('branch') || undefined
 
@@ -38,7 +39,8 @@ export async function GET(request: Request) {
 /** حساب جدید یا انتقال بین حساب‌ها */
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = (await request.json().catch(() => ({}))) as {
     action?: 'create' | 'transfer'
     name?: string

@@ -2,14 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // بررسی کیفیت: خطاهای TypeScript نباید نادیده گرفته شوند
   reactStrictMode: false,
-  // گنجاندن دیتابیس بذر و اتصال production داخل باندل توابع سرورلس (Vercel)
+  // گنجاندن دیتابیس بذر داخل باندل توابع سرورلس (fallback توسعه)
   outputFileTracingIncludes: {
-    "/api/**/*": ["./db/seed.db", "./db/production.json"],
+    "/api/**/*": ["./db/seed.db"],
   },
 };
 

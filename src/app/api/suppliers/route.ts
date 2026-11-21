@@ -5,7 +5,8 @@ import { getSessionUser } from '@/lib/auth'
 /** تامین‌کنندگان با مجموع خرید */
 export async function GET() {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const [suppliers, purchases] = await Promise.all([
     db.supplier.findMany({ orderBy: { name: 'asc' } }),
     db.purchase.findMany({ select: { supplier: true, total: true, date: true } }),
@@ -30,7 +31,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = (await request.json().catch(() => ({}))) as { name?: string; phone?: string; note?: string }
   if (!body.name?.trim()) return NextResponse.json({ error: 'نام تامین‌کننده الزامی است' }, { status: 400 })
   const supplier = await db.supplier.upsert({

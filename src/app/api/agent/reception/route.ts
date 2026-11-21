@@ -22,8 +22,9 @@ async function freeSlots(serviceName?: string, doctorName?: string) {
     : await db.service.findFirst({ orderBy: { price: 'asc' } })
   if (!svc) return { error: 'خدمت یافت نشد' }
   const doctors = await db.doctor.findMany({ where: { active: true }, include: { branch: true } })
-  let doctor = undefined
-  if (doctorName) doctor = doctors.find((d) => d.name.includes(doctorName.trim()))
+  let doctor: (typeof doctors)[number] | undefined = doctorName
+    ? doctors.find((d) => d.name.includes(doctorName.trim()))
+    : undefined
   if (!doctor) {
     const preferred =
       svc.category === 'جراحی' ? doctors.find((x) => x.name.includes('امیر'))
@@ -31,6 +32,7 @@ async function freeSlots(serviceName?: string, doctorName?: string) {
       : doctors.find((x) => x.name.includes('نگین'))
     doctor = preferred ?? doctors[0]
   }
+  if (!doctor) return { error: 'پزشک فعال یافت نشد' }
   const now = new Date()
   const days: Date[] = []
   let t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + 86400000

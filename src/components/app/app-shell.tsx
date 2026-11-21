@@ -11,6 +11,7 @@ import {
   MessageSquare, FolderOpen, Hourglass, Settings, Globe, RefreshCw, ClipboardList,
   PanelRightClose, PanelRightOpen, Home, BarChart3, Cloud,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { ThemeToggle } from './theme-toggle'
 import { GlobalSearch } from './global-search'
 import { NotificationCenter } from './notification-center'
@@ -84,10 +85,7 @@ const ROLE_HOME: Record<string, string> = {
   PATIENT: 'portal',
 }
 
-const ROLE_ICON: Record<string, typeof ShieldIcon> = { ADMIN: ShieldIcon, DOCTOR: Stethoscope, RECEPTIONIST: Headset, PATIENT: UserRound }
-function ShieldIcon(props: { className?: string }) {
-  return <Sparkles {...props} />
-}
+const ROLE_ICON: Record<string, LucideIcon> = { ADMIN: Sparkles, DOCTOR: Stethoscope, RECEPTIONIST: Headset, PATIENT: UserRound }
 
 /** میان‌برهای داشبورد برای هر نقش (کلیک روی آیکن = پرش به همان بخش) */
 const QUICK_KEYS: Record<string, string[]> = {

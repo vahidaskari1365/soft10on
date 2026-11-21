@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getSessionUser } from '@/lib/auth'
 
 export async function GET() {
+  const session = await getSessionUser()
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const now = new Date()
   const tasks = await db.task.findMany({
     include: { patient: { select: { firstName: true, lastName: true } } },
@@ -18,6 +22,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await getSessionUser()
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = await request.json()
   const { title, description, assigneeRole, assigneeName, patientId, dueAt, priority, source } = body as {
     title: string

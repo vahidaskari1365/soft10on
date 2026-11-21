@@ -6,7 +6,8 @@ import { hashPassword } from '@/lib/password'
 /** ویرایش کاربر (فعال/غیرفعال، تغییر شعبه، تغییر رمز) — فقط مدیر کل */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
+  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
   const { id } = await params
 
   const body = await request.json().catch(() => ({}))

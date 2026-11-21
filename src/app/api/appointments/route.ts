@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getSessionUser } from '@/lib/auth'
+import { validateApptTime, doctorHasConflict } from '@/lib/scheduling'
 
 export async function GET(request: Request) {
+  const session = await getSessionUser()
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const date = searchParams.get('date')
 
@@ -28,6 +33,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const session = await getSessionUser()
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = await request.json()
   const { patientId, newPatient, doctorId, serviceId, start, source, note } = body as {
     patientId?: string
@@ -58,6 +66,14 @@ export async function POST(request: Request) {
 
   const service = await db.service.findUnique({ where: { id: serviceId } })
   if (!service) return NextResponse.json({ error: 'خدمت یافت نشد' }, { status: 400 })
+
+  // ————— اعتبارسنجی زمان + کنترل تداخل نوبت پزشک —————
+  const time = validateApptTime(start)
+  if (!time.ok) return NextResponse.json({ error: time.error }, { status: 400 })
+  if (await doctorHasConflict(doctorId, time.startMs, service.durationMin)) {
+    return NextResponse.json({ error: 'تداخل زمانی: پزشک در این بازه نوبت دیگری دارد' }, { status: 409 })
+  }
+  const startMs = time.startMs
 
   const doctor = await db.doctor.findUnique({ where: { id: doctorId } })
   if (!doctor) return NextResponse.json({ error: 'پزشک یافت نشد' }, { status: 400 })

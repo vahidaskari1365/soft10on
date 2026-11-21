@@ -273,15 +273,7 @@ function AddAppointmentDialog({
   const [hour, setHour] = useState<string>('10')
   const [minute, setMinute] = useState<string>('00')
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    fetch('/api/patients').then((r) => r.json()).then((j) => setPatients(j.patients ?? [])).catch(() => {})
-    fetch('/api/meta').then((r) => r.json()).then((j) => {
-      if (j.doctors?.length) setDoctors(j.doctors)
-      if (j.services?.length) setServices(j.services)
-    }).catch(() => {})
-  }, [open])
+  // فهرست بیماران/پزشکان/خدمات از طریق props از والد می‌آید و اینجا بارگیری مجدد نمی‌شود
 
   const submit = async () => {
     if (!patientId || !doctorId || !serviceId) {

@@ -51,7 +51,8 @@ export async function GET(request: Request) {
 /** ثبت سند پرونده — { patientId, type, title, content, doctorId?, source? } */
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = (await request.json().catch(() => ({}))) as {
     patientId?: string
     type?: string
@@ -89,7 +90,8 @@ export async function POST(request: Request) {
 /** به‌روزرسانی شناسنامه — { patientId, allergies?, isPregnant?, chronicNote? } */
 export async function PATCH(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = (await request.json().catch(() => ({}))) as {
     patientId?: string
     allergies?: string

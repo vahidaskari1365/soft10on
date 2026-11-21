@@ -9,7 +9,8 @@ import { monthKeyStart, monthKeyEnd, shiftJMonth, jMonthKey } from '@/lib/jalali
  */
 export async function GET(request: Request) {
   const session = await getSessionUser()
-  if (!session || (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST'))
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST')
     return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const { searchParams } = new URL(request.url)

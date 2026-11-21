@@ -12,7 +12,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = (await request.json().catch(() => ({}))) as { question?: string; answer?: string; category?: string }
   if (!body.question?.trim() || !body.answer?.trim()) {
     return NextResponse.json({ error: 'پرسش و پاسخ هر دو الزامی است' }, { status: 400 })

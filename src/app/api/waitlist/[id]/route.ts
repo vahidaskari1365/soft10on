@@ -5,7 +5,8 @@ import { getSessionUser } from '@/lib/auth'
 /** برداشتن از صف / رزرو برای بیمار صف / لغو */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { id } = await params
   const body = (await request.json().catch(() => ({}))) as {
     action?: 'offer' | 'book' | 'cancel'

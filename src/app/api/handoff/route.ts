@@ -9,7 +9,8 @@ import { formatTomanFull } from '@/lib/format'
 /** تحویل شیفت — خلاصه‌ی خودکار وضعیت امروز برای منشای شیفت بعد */
 export async function GET() {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const started = Date.now()
 
   const dayStart = utcDayStart(new Date())

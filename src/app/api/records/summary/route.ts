@@ -7,7 +7,8 @@ import { getClinicDNA } from '@/lib/clinic-dna'
 /** خلاصه‌ی هوشمند پرونده برای پزشک — «خلاصه آماده پیش از ویزیت» */
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const started = Date.now()
   const body = (await request.json().catch(() => ({}))) as { patientId?: string }
   if (!body.patientId) return NextResponse.json({ error: 'شناسه بیمار لازم است' }, { status: 400 })

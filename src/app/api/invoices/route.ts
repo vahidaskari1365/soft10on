@@ -9,7 +9,8 @@ type ItemInput = { kind?: string; refId?: string; title?: string; qty?: number; 
 /** لیست فاکتورها با فیلتر ماه/وضعیت/جستجو */
 export async function GET(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
@@ -66,7 +67,8 @@ export async function GET(request: Request) {
 /** صدور فاکتور — { patientId?, branchId?, discount, note, items: [{kind, refId, title, qty, unitPrice}] } */
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = (await request.json().catch(() => ({}))) as {
     patientId?: string
     branchId?: string

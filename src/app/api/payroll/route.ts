@@ -13,7 +13,8 @@ const STAFF_BASE: Record<string, number> = {
 /** حقوق و کارانه ماهانه — پیش‌نمایش محاسبه + لیست پرداخت‌شده‌ها */
 export async function GET(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
   const valid = /^\d{4}-(0[1-9]|1[0-2])$/.test(raw ?? '')
@@ -91,7 +92,8 @@ export async function GET(request: Request) {
 /** ثبت یا پرداخت حقوق — { action: 'save'|'pay', month, staffName, role, baseSalary?, overtime?, bonus?, deductions?, commission?, method?, cashAccountId? } */
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = (await request.json().catch(() => ({}))) as {
     action?: 'save' | 'pay'
     month?: string

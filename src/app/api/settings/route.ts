@@ -14,7 +14,10 @@ function mask(key: string | undefined | null): string {
 /** تنظیمات سیستم — فقط مدیر کل */
 export async function GET() {
   const session = await getSessionUser()
-  if (!session || session.role !== 'ADMIN') {
+  if (!session) {
+    return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  }
+  if (session.role !== 'ADMIN') {
     return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   }
   const keyMeta = await db.systemMeta.findUnique({ where: { key: 'ai_api_key' } })
@@ -41,7 +44,10 @@ export async function GET() {
 /** ذخیره تنظیمات — بدنه: { ai?: {baseUrl, apiKey?, model}, dna?: {...} } */
 export async function PUT(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role !== 'ADMIN') {
+  if (!session) {
+    return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  }
+  if (session.role !== 'ADMIN') {
     return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   }
   const body = (await request.json().catch(() => ({}))) as {
@@ -82,7 +88,10 @@ export async function PUT(request: Request) {
 /** تست اتصال پرووایدر — { baseUrl, apiKey?, model? } (apiKey خالی = از ذخیره‌شده) */
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role !== 'ADMIN') {
+  if (!session) {
+    return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  }
+  if (session.role !== 'ADMIN') {
     return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   }
   const body = (await request.json().catch(() => ({}))) as { baseUrl?: string; apiKey?: string; model?: string }

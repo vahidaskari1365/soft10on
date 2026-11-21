@@ -6,7 +6,8 @@ import { CHECK_STATUS } from '@/lib/accounting'
 /** لیست چک‌های دریافتی و صادره */
 export async function GET(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const direction = searchParams.get('direction') ?? ''
   const status = searchParams.get('status') ?? ''
@@ -58,7 +59,8 @@ export async function GET(request: Request) {
 /** ثبت چک جدید — { direction, number, bank, dueDate, amount, patientId?, supplierName?, cashAccountId?, note? } */
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = (await request.json().catch(() => ({}))) as {
     direction?: string
     number?: string

@@ -28,7 +28,7 @@ export function AssistantSection({
   onNavigate,
   patient,
 }: {
-  onNavigate: (key: string) => void
+  onNavigate?: (key: string) => void
   patient?: { id: string; name: string; phone: string }
 }) {
   const [bubbles, setBubbles] = useState<Bubble[]>([])
@@ -229,10 +229,10 @@ export function AssistantSection({
                 </div>
                 <p className="text-xs text-muted-foreground leading-5 whitespace-pre-line">{booked.text}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" variant="outline" className="rounded-xl text-xs" onClick={() => onNavigate('appointments')}>
+                  <Button size="sm" variant="outline" className="rounded-xl text-xs" onClick={() => onNavigate?.('appointments')}>
                     <CalendarDays className="h-3.5 w-3.5 ml-1" /> در تقویم
                   </Button>
-                  <Button size="sm" variant="outline" className="rounded-xl text-xs" onClick={() => onNavigate('tasks')}>
+                  <Button size="sm" variant="outline" className="rounded-xl text-xs" onClick={() => onNavigate?.('tasks')}>
                     <Inbox className="h-3.5 w-3.5 ml-1" /> در کارتابل
                   </Button>
                 </div>

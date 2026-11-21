@@ -7,7 +7,8 @@ import { PAYMENT_METHOD_LABEL } from '@/lib/accounting'
 /** دفتر روزنه — همه‌ی واریز و برداشت‌ها با فیلتر */
 export async function GET(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
@@ -61,7 +62,8 @@ export async function GET(request: Request) {
 /** ثبت پرداخت دستی — { direction, amount, method?, cashAccountId?, patientId?, description, refType? } */
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  if (!session || session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const body = (await request.json().catch(() => ({}))) as {
     direction?: string
     amount?: number

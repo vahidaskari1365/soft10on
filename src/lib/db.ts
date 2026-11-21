@@ -41,17 +41,16 @@ function bootstrapDatabase() {
     return
   }
 
-  // اتصال production کامیت‌شده (db/production.json) — برای هاست‌هایی که
-  // متغیر محیطی قابل تنظیم نیست. این اتصال از نقش کم‌دسترسی tenon_app
-  // استفاده می‌کند (فقط CRUD روی جداول public؛ بدون DDL و دسترسی مدیریتی).
-  try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'db', 'production.json'), 'utf8'))
-    if (cfg?.url?.startsWith('postgres')) {
-      process.env.DATABASE_URL = cfg.url
-      return
-    }
-  } catch {
-    // فایل وجود ندارد؛ ادامه با منطق SQLite
+  // ————— Production: بدون DATABASE_URL باید امن متوقف شود —————
+  // هیچ fallback فایلِ حاوی اعتبارنامه، هیچ دیتابیس آزمایشی خاموش.
+  // خطا نباید مقدار تلاش‌شده یا بخشی از رشته اتصال را نشان دهد.
+  const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
+  if (isProduction) {
+    throw new Error(
+      'CONFIGURATION ERROR: DATABASE_URL environment variable is required in production. ' +
+        'Set it in the hosting provider (e.g. Vercel Project Settings → Environment Variables). ' +
+        'Refusing to start with a demo database.'
+    )
   }
 
   const filePart = url.startsWith('file:') ? url.slice('file:'.length) : ''

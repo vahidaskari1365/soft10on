@@ -7,7 +7,10 @@ import { ROLE_FA } from '@/lib/auth'
 /** لیست پرسنل و کاربران */
 export async function GET() {
   const user = await getSessionUser()
-  if (!user || (user.role !== 'ADMIN' && user.role !== 'RECEPTIONIST')) {
+  if (!user) {
+    return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  }
+  if (user.role !== 'ADMIN' && user.role !== 'RECEPTIONIST') {
     return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   }
   const users = await db.user.findMany({
@@ -35,7 +38,8 @@ export async function GET() {
 /** ایجاد کاربر جدید — فقط مدیر کل */
 export async function POST(request: Request) {
   const user = await getSessionUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
+  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
 
   const body = await request.json().catch(() => ({}))
   const username = String(body.username ?? '').trim()
