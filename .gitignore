@@ -55,7 +55,6 @@ server.log
 # project-specific (sandbox & local artifacts)
 /db/*
 !/db/seed.db
-!/db/production.json
 /dev.log
 /server.log
 /skills/
