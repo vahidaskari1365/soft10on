@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { getSessionUser, revokeAllSessions } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { jMonthKey, monthKeyStart, monthKeyEnd } from '@/lib/jalali'
 import { formatToman } from '@/lib/format'
 
@@ -67,11 +68,7 @@ export async function GET() {
 }
 
 /** ایجاد شعبه جدید — فقط مدیر کل */
-export async function POST(request: Request) {
-  const user = await getSessionUser()
-  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
-
+export const POST = tenantHandler('ADMIN')(async (user, request) => {
   const body = await request.json().catch(() => ({}))
   const code = String(body.code ?? '').trim().toUpperCase()
   const name = String(body.name ?? '').trim()
@@ -81,8 +78,17 @@ export async function POST(request: Request) {
   if (!code || !name || !city || !address) {
     return NextResponse.json({ error: 'کد، نام، شهر و آدرس شعبه الزامی است' }, { status: 400 })
   }
-  const exists = await db.branch.findUnique({ where: { code } })
+  const exists = await db.branch.findFirst({ where: { code } })
   if (exists) return NextResponse.json({ error: 'کد شعبه تکراری است' }, { status: 400 })
+
+  // محدودیت پلن — تعداد شعب
+  const clinic = await db.clinic.findFirst({ where: { id: user.clinicId! }, include: { plan: true } })
+  if (clinic?.plan) {
+    const count = await db.branch.count()
+    if (count >= clinic.plan.maxBranches) {
+      return NextResponse.json({ error: `سقف شعب پلن «${clinic.plan.name}» پر است (${clinic.plan.maxBranches} شعبه)` }, { status: 402 })
+    }
+  }
 
   const branch = await db.branch.create({
     data: {
@@ -98,4 +104,4 @@ export async function POST(request: Request) {
     },
   })
   return NextResponse.json({ branch })
-}
+})

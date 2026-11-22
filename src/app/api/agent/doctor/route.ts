@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { runToolAgent, type AgentTool } from '@/lib/agents'
-import { requireRole } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { utcDayStart, formatJDate, formatTime } from '@/lib/jalali'
 import { getClinicDNA } from '@/lib/clinic-dna'
 import { rateLimit } from '@/lib/ratelimit'
@@ -152,9 +152,7 @@ const SYSTEM = `شما «10on» هستید؛ دستیار پزشک هوشمند.
 - برای ثبت هر سند یا وظیفه از ابزار استفاده کنید و نتیجه را اعلام کنید.
 - پاسخ نهایی کوتاه، منظم و فارسی باشد.`
 
-export async function POST(request: Request) {
-  const user = await requireRole('DOCTOR')
-  if (!user) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('DOCTOR')(async (user, request) => {
   const rl = rateLimit(`ai:${user.id}`, 20, 60_000)
   if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
 
@@ -195,4 +193,4 @@ export async function POST(request: Request) {
     steps: turn.steps.map((s) => ({ title: s.title, ok: s.ok, result: s.result })),
     aiUsed: turn.aiUsed,
   })
-}
+})

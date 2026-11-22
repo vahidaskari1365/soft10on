@@ -54,6 +54,15 @@ export async function POST(request: Request) {
   const exists = await db.user.findUnique({ where: { username } })
   if (exists) return NextResponse.json({ error: 'این نام کاربری قبلاً گرفته شده' }, { status: 400 })
 
+  // محدودیت پلن — تعداد کاربران
+  const clinic = await db.clinic.findFirst({ where: { id: user.clinicId! }, include: { plan: true } })
+  if (clinic?.plan) {
+    const count = await db.user.count({ where: { clinicId: user.clinicId } })
+    if (count >= clinic.plan.maxUsers) {
+      return NextResponse.json({ error: `سقف کاربران پلن «${clinic.plan.name}» پر است (${clinic.plan.maxUsers} کاربر)` }, { status: 402 })
+    }
+  }
+
   const branchId = body.branchId ? String(body.branchId) : null
 
   // برای پزشک: ساخت پرونده پزشک در صورت نیاز
@@ -87,6 +96,7 @@ export async function POST(request: Request) {
       role,
       phone: body.phone ? String(body.phone) : null,
       email: body.email ? String(body.email) : null,
+      clinicId: user.clinicId!, // عضویت کاربر جدید همیشه در کلینیک مدیرِ ایجادکننده
       branchId,
       doctorId,
       patientId,

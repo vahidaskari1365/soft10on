@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { getSessionUser, revokeAllSessions } from '@/lib/auth'
 import { hashPassword } from '@/lib/password'
 
 /** ویرایش کاربر (فعال/غیرفعال، تغییر شعبه، تغییر رمز) — فقط مدیر کل */
@@ -17,6 +17,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.email !== undefined) data.email = body.email ? String(body.email) : null
   if (body.branchId !== undefined) data.branchId = body.branchId ? String(body.branchId) : null
   if (body.active !== undefined) data.active = Boolean(body.active)
+  // غیرفعال‌سازی کاربر → همهٔ نشست‌های او فوراً باطل می‌شود
   // فیلدهای تکمیلی پرسنلی
   if (body.nationalId !== undefined) data.nationalId = body.nationalId ? String(body.nationalId).trim() : null
   if (body.jobTitle !== undefined) data.jobTitle = body.jobTitle ? String(body.jobTitle).trim().slice(0, 60) : null
@@ -42,5 +43,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const updated = await db.user.update({ where: { id }, data })
+  if (data.active === false) await revokeAllSessions(updated.id)
   return NextResponse.json({ user: { id: updated.id, username: updated.username, active: updated.active } })
 }

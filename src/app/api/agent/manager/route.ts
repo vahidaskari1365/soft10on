@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { runToolAgent, type AgentTool, type AgentStep } from '@/lib/agents'
-import { requireRole } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { jMonthKey, monthKeyStart, monthKeyEnd, formatJDate, formatTime, formatDayRelative, weekdayName, faDigits } from '@/lib/jalali'
 import { formatToman, formatTomanFull } from '@/lib/format'
 import { rateLimit } from '@/lib/ratelimit'
@@ -328,9 +328,7 @@ async function fallback(userMessage: string): Promise<{ answer: string; steps: A
   }
 }
 
-export async function POST(request: Request) {
-  const user = await requireRole('ADMIN')
-  if (!user) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN')(async (user, request) => {
   const rl = rateLimit(`ai:${user.id}`, 20, 60_000)
   if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
 
@@ -362,4 +360,4 @@ export async function POST(request: Request) {
     steps: turn.steps.map((s) => ({ title: s.title, ok: s.ok, result: s.result })),
     aiUsed: turn.aiUsed,
   })
-}
+})

@@ -4,6 +4,13 @@ import { hashPassword } from '../src/lib/password'
 
 const db = new PrismaClient()
 
+// گارد Production — seed دمو هرگز روی محیط عملیاتی اجرا نمی‌شود مگر با اجازهٔ صریح
+const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
+if (isProduction && process.env.SEED_ALLOW_PRODUCTION !== '1') {
+  console.error('SEED BLOCKED: محیط production است. حساب‌های دمو مجاز نیستند (SEED_ALLOW_PRODUCTION=1 برای اجازهٔ صریح).')
+  process.exit(1)
+}
+
 // ---------- deterministic RNG ----------
 let seedState = 987654321
 function rnd() {

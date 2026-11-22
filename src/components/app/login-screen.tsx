@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,6 +21,12 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
+  // حساب‌های نمایشی فقط در حالت دمو/توسعه — در production واقعی مخفی می‌شوند
+  const [demoMode, setDemoMode] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/meta').then((r) => r.json()).then((d) => setDemoMode(d?.demoMode !== false)).catch(() => {})
+  }, [])
 
   async function login(user: string, pass: string, key: string) {
     setError(null)
@@ -135,6 +141,8 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
               </Button>
             </form>
 
+            {demoMode ? (
+            <>
             <div className="flex items-center gap-3 my-6">
               <div className="h-px flex-1 bg-border" />
               <span className="text-[11px] text-muted-foreground">حساب‌های نمایشی (رمز همه: ۱۲۳۴۵۶)</span>
@@ -175,6 +183,8 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
                 )
               })}
             </div>
+            </>
+            ) : null}
           </div>
 
           <p className="text-center text-[11px] text-muted-foreground mt-5 leading-5">

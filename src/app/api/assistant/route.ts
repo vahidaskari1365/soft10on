@@ -5,7 +5,7 @@ import { formatToman } from '@/lib/format'
 import { llmChat, extractJSON } from '@/lib/ai'
 import { doctorHasConflict } from '@/lib/scheduling'
 import { rateLimit } from '@/lib/ratelimit'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 
 export const maxDuration = 60
 
@@ -151,11 +151,9 @@ ${facts.services.join(' | ')}
   }
 }
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  const rl = rateLimit(`ai:${session?.id ?? 'anon'}`, 20, 60_000)
+export const POST = tenantHandler()(async (session, request) => {
+  const rl = rateLimit(`ai:${session.id}`, 20, 60_000)
   if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
   const body = await request.json()
   const action = body.action as 'text' | 'slots' | 'book' | 'prices' | 'services' | 'greet' | 'choose_service'
   const text = body.text as string | undefined
@@ -427,4 +425,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ error: 'اکشن نامشخص' }, { status: 400 })
-}
+})

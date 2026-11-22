@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { validateApptTime, doctorHasConflict } from '@/lib/scheduling'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
@@ -8,16 +8,13 @@ import { logAudit } from '@/lib/audit'
 const ALLOWED_STATUS = ['REQUESTED', 'PENDING', 'CONFIRMED', 'ARRIVED', 'IN_VISIT', 'DONE', 'CANCELLED', 'NO_SHOW', 'RESCHEDULED']
 
 /** تغییر وضعیت، تأیید پذیرش، لغو با دلیل و تغییر زمان با ثبت تاریخچه */
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const PATCH = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', 'ACCOUNTANT')(async (session, request, { params }) => {
   const { id } = await params
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const status = typeof body.status === 'string' ? body.status : undefined
   const action = typeof body.action === 'string' ? body.action : undefined
 
-  const appt = await db.appointment.findUnique({
+  const appt = await db.appointment.findFirst({
     where: { id },
     include: { patient: true, doctor: true, service: true, roomUnit: true },
   })
@@ -40,6 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       })
       await tx.appointmentHistory.create({
         data: {
+          clinicId: session.clinicId,
           appointmentId: id,
           action: 'RESCHEDULE',
           oldStart,
@@ -68,7 +66,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         include: { patient: true, doctor: true, service: true, roomUnit: true },
       })
       await tx.appointmentHistory.create({
-        data: { appointmentId: id, action: 'CANCEL', oldStatus: appt.status, newStatus: status, changedByName: session.fullName, note: cancelReason },
+        data: { clinicId: session.clinicId, appointmentId: id, action: 'CANCEL', oldStatus: appt.status, newStatus: status, changedByName: session.fullName, note: cancelReason },
       })
       return u
     }, { timeout: 20_000, maxWait: 10_000 })
@@ -96,12 +94,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       include: { patient: true, doctor: true, service: true, roomUnit: true },
     })
     await tx.appointmentHistory.create({
-      data: { appointmentId: id, action: 'STATUS', oldStatus: appt.status, newStatus: status, changedByName: session.fullName },
+      data: { clinicId: session.clinicId, appointmentId: id, action: 'STATUS', oldStatus: appt.status, newStatus: status, changedByName: session.fullName },
     })
     return u
   })
   await addTimeline(appt.patientId, 'APPOINTMENT', `تغییر وضعیت نوبت ${appt.service.name} — ${status}`, { refId: id, actorName: session.fullName })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'UPDATE', entity: 'Appointment', entityId: id, branchId: appt.branchId, clinicId: session.clinicId, meta: { status } })
   return NextResponse.json({ appointment: updated })
-}
-
+})
