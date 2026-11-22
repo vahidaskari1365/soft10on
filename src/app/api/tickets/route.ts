@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 
 /**
  * پشتیبانی پلتفرم (SaaS ops) — ثبت و پیگیری تیکت.
  * ثبت برای همه کارکنان؛ مدیریت وضعیت و پاسخ: ADMIN.
  */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (_session, request) => {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
   const tickets = await db.supportTicket.findMany({
@@ -17,11 +15,9 @@ export async function GET(request: Request) {
     take: 100,
   })
   return NextResponse.json({ tickets })
-}
+})
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const POST = tenantHandler()(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const subject = String(body.subject ?? '').trim()
@@ -35,12 +31,9 @@ export async function POST(request: Request) {
     data: { subject, body: text, priority, category, requesterName: session.fullName, clinicName: session.clinicId ?? undefined },
   })
   return NextResponse.json({ ticket }, { status: 201 })
-}
+})
 
-export async function PATCH(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const PATCH = tenantHandler('ADMIN')(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const id = typeof body.id === 'string' ? body.id : ''
@@ -63,4 +56,4 @@ export async function PATCH(request: Request) {
   }
   const updated = await db.supportTicket.update({ where: { id }, data: data as { status?: string; assigneeName?: string; responses?: object } })
   return NextResponse.json({ ticket: updated })
-}
+})

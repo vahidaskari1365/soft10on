@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { vStr, vEnum } from '@/lib/validation'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
@@ -10,10 +10,8 @@ const ALLOWED_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'
 const MAX_SIZE = 10 * 1024 * 1024 // 10MB
 
 /** فهرست اسناد بیمار (فقط متادیتا) — بیمار فقط اسناد خودش */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const GET = tenantHandler()(async (session, _request, { params }) => {
   const { id } = await params
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
   if (session.role === 'PATIENT' && session.patientId !== id)
     return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const documents = await db.document.findMany({
@@ -22,13 +20,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     select: { id: true, kind: true, title: true, mimeType: true, sizeBytes: true, note: true, createdAt: true, uploadedBy: { select: { fullName: true } } },
   })
   return NextResponse.json({ documents })
-}
+})
 
 /** آپلود سند پزشکی — ذخیره در دیتابیس با کنترل نوع، حجم و مجوز؛ لینک عمومی وجود ندارد */
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', 'ACCOUNTANT')(async (session, request, { params }) => {
   const { id } = await params
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
   // بیمار فقط سند PORTAL_UPLOAD برای پرونده خودش می‌فرستد
   const isPatient = session.role === 'PATIENT'
   if (isPatient && session.patientId !== id)
@@ -59,7 +55,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const note = vStr(form.get('note'), { label: 'توضیحات', max: 300 })
   if (!note.ok) return NextResponse.json({ error: note.error }, { status: 400 })
 
-  const patient = await db.patient.findUnique({ where: { id }, select: { id: true } })
+  // بیمار باید از کلینیک کاربر باشد — scope خودکار Extension
+  const patient = await db.patient.findFirst({ where: { id }, select: { id: true } })
   if (!patient) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
   const bytes = new Uint8Array(await file.arrayBuffer())
@@ -83,4 +80,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   await logAudit({ userId: session.id, userName: session.fullName, action: 'UPLOAD', entity: 'Document', entityId: document.id, branchId: session.branchId, clinicId: session.clinicId, meta: { kind: kind.value, sizeBytes: file.size, mimeType: file.type } })
 
   return NextResponse.json({ document }, { status: 201 })
-}
+})

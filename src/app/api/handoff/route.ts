@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { utcDayStart } from '@/lib/jalali'
 import { llmChat, logAiCall } from '@/lib/ai'
 import { getClinicDNA } from '@/lib/clinic-dna'
 import { formatTomanFull } from '@/lib/format'
 
 /** تحویل شیفت — خلاصه‌ی خودکار وضعیت امروز برای منشای شیفت بعد */
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, _request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const started = Date.now()
 
@@ -80,4 +78,4 @@ export async function GET() {
     aiUsed: Boolean(summary),
     facts: { today: facts.today, cash: facts.cash, openTasks: openTasks.length, unread: unreadMsgs.length, waitlist: waitlistCount },
   })
-}
+})

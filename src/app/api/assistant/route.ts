@@ -152,7 +152,7 @@ ${facts.services.join(' | ')}
 }
 
 export const POST = tenantHandler()(async (session, request) => {
-  const rl = rateLimit(`ai:${session.id}`, 20, 60_000)
+  const rl = await rateLimit(`ai:${session.clinicId}:${session.id}`, 20, 60_000)
   if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
   const body = await request.json()
   const action = body.action as 'text' | 'slots' | 'book' | 'prices' | 'services' | 'greet' | 'choose_service'

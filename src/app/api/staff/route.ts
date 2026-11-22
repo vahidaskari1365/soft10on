@@ -1,18 +1,11 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { hashPassword } from '@/lib/password'
 import { ROLE_FA } from '@/lib/auth'
 
 /** لیست پرسنل و کاربران */
-export async function GET() {
-  const user = await getSessionUser()
-  if (!user) {
-    return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  }
-  if (user.role !== 'ADMIN' && user.role !== 'RECEPTIONIST') {
-    return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
-  }
+export const GET = tenantHandler('ADMIN', 'RECEPTIONIST')(async (user, _request) => {
   const users = await db.user.findMany({
     orderBy: { createdAt: 'asc' },
     include: { branch: true, doctor: true, patient: true },
@@ -33,13 +26,10 @@ export async function GET() {
       patientName: u.patient ? `${u.patient.firstName} ${u.patient.lastName}` : null,
     })),
   })
-}
+})
 
 /** ایجاد کاربر جدید — فقط مدیر کل */
-export async function POST(request: Request) {
-  const user = await getSessionUser()
-  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
+export const POST = tenantHandler('ADMIN')(async (user, request) => {
 
   const body = await request.json().catch(() => ({}))
   const username = String(body.username ?? '').trim()
@@ -103,4 +93,4 @@ export async function POST(request: Request) {
     },
   })
   return NextResponse.json({ user: { id: created.id, username: created.username, role: created.role } })
-}
+})

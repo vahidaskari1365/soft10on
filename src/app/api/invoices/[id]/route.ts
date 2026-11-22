@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { postJournal, ACC } from '@/lib/ledger'
@@ -89,9 +90,16 @@ export const PATCH = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTA
   const method = typeof body.method === 'string' && PAY_METHODS.has(body.method) ? body.method : 'CASH'
   const cashAccountId = typeof body.cashAccountId === 'string' && body.cashAccountId ? body.cashAccountId : null
 
+  // Idempotency per-clinic — کلید تکراری با مبلغ متفاوت رد می‌شود
+  const fingerprint = createHash('sha256').update(['pay', invoice.id, rawAmount, method].join('|')).digest('hex')
   if (idemKey) {
-    const existing = await db.payment.findUnique({ where: { idempotencyKey: idemKey } })
-    if (existing) return NextResponse.json({ ok: true, duplicate: true, status: invoice.status })
+    const existing = await db.payment.findFirst({ where: { idempotencyKey: idemKey } })
+    if (existing) {
+      if (existing.idempotencyFingerprint && existing.idempotencyFingerprint !== fingerprint) {
+        return NextResponse.json({ error: 'این کلید Idempotency قبلاً با مبلغ متفاوت استفاده شده است' }, { status: 409 })
+      }
+      return NextResponse.json({ ok: true, duplicate: true, status: invoice.status })
+    }
   }
 
   try {
@@ -114,7 +122,7 @@ export const PATCH = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTA
             description: `پرداخت فاکتور شماره ${invoice.number}`,
             refType: 'INVOICE',
             refId: invoice.id,
-            ...(idemKey ? { idempotencyKey: idemKey } : {}),
+            ...(idemKey ? { idempotencyKey: idemKey, idempotencyFingerprint: fingerprint } : {}),
           },
         })
         // بدهکار: صندوق/بانک | بستانکار: حساب‌های دریافتنی
@@ -147,7 +155,8 @@ export const PATCH = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTA
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     if (idemKey && e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-      return NextResponse.json({ ok: true, duplicate: true, status: invoice.status })
+      const existing = await db.payment.findFirst({ where: { idempotencyKey: idemKey } })
+      if (existing) return NextResponse.json({ ok: true, duplicate: true, status: invoice.status })
     }
     const status = (e as { status?: number }).status ?? 500
     if (status >= 500) console.error('[invoice-pay] tx failed:', (e as Error).message)

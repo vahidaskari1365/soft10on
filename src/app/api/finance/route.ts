@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
 import { monthlySeries } from '@/lib/finance'
 import { monthKeyStart, monthKeyEnd, lastNMonthKeys } from '@/lib/jalali'
 import { cashBalances } from '@/lib/accounting'
 import { EXPENSE_CATEGORY_LABEL } from '@/lib/format'
 
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, request) => {
   if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
@@ -105,4 +103,4 @@ export async function GET(request: Request) {
       openInvoicesAmount: invoiceAgg._sum.total ?? 0,
     },
   })
-}
+})

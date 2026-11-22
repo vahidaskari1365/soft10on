@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { monthKeyStart, monthKeyEnd, lastNMonthKeys } from '@/lib/jalali'
@@ -6,10 +7,16 @@ import { PAYMENT_METHOD_LABEL } from '@/lib/accounting'
 import { postJournal, ACC } from '@/lib/ledger'
 import { refreshInvoiceStatus } from '@/lib/accounting'
 import { assertBranch, tenantHandler } from '@/lib/tenant'
+import { rateLimit } from '@/lib/ratelimit'
 import { logAudit } from '@/lib/audit'
 
 const METHODS = new Set(['CASH', 'CARD', 'POS', 'ONLINE', 'TRANSFER', 'CHECK'])
 const DIRECTIONS = new Set(['IN', 'OUT'])
+
+/** اثر انگشت محتوای درخواست — کلید idempotency تکراری با محتوای متفاوت رد می‌شود */
+function idemFingerprint(parts: (string | number | null)[]): string {
+  return createHash('sha256').update(parts.map((x) => (x ?? '')).join('|')).digest('hex')
+}
 
 /** دفتر روزنامه — همه‌ی واریز و برداشت‌های کلینیک خود کاربر با فیلتر شعبهٔ مجاز */
 export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTANT')(async (session, request) => {
@@ -69,6 +76,8 @@ export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTANT
  * ۵) سند دوبل ۶) وضعیت فاکتور (در صورت اتصال) ۷) Audit — شکست هر مرحله = Rollback کامل
  */
 export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTANT')(async (session, request) => {
+  const rl = await rateLimit(`pay:${session.clinicId}:${session.id}`, 30, 60_000)
+  if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های پرداخت زیاد است؛ کمی بعد تلاش کنید' }, { status: 429 })
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const idemKey = (typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim()) ||
     request.headers.get('idempotency-key')?.trim() || null
@@ -94,10 +103,16 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTAN
     return NextResponse.json({ error: 'انتخاب صندوق/حساب برای ثبت پرداخت الزامی است' }, { status: 400 })
   }
 
-  // Idempotency — درخواست تکراری همان پرداخت را برمی‌گرداند، دوباره ثبت نمی‌کند
+  // Idempotency per-clinic — پرداخت تکراری همان کلینیک برمی‌گردد؛ پرداخت کلینیک دیگر هرگز
+  const fingerprint = idemFingerprint([direction, amount, method, cashAccountId, patientId, String(body.description).trim()])
   if (idemKey) {
-    const existing = await db.payment.findUnique({ where: { idempotencyKey: idemKey } })
-    if (existing) return NextResponse.json({ payment: { ...existing, date: existing.date.toISOString() }, duplicate: true })
+    const existing = await db.payment.findFirst({ where: { idempotencyKey: idemKey } })
+    if (existing) {
+      if (existing.idempotencyFingerprint && existing.idempotencyFingerprint !== fingerprint) {
+        return NextResponse.json({ error: 'این کلید Idempotency قبلاً با محتوای متفاوت استفاده شده است' }, { status: 409 })
+      }
+      return NextResponse.json({ payment: { ...existing, date: existing.date.toISOString() }, duplicate: true })
+    }
   }
 
   try {
@@ -126,7 +141,7 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTAN
             patientId,
             description: String(body.description).trim().slice(0, 500),
             refType: typeof body.refType === 'string' && body.refType ? body.refType : 'OTHER',
-            ...(idemKey ? { idempotencyKey: idemKey } : {}),
+            ...(idemKey ? { idempotencyKey: idemKey, idempotencyFingerprint: fingerprint } : {}),
           },
           include: { patient: { select: { firstName: true, lastName: true } }, cashAccount: { select: { name: true } } },
         })
@@ -181,7 +196,8 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTAN
   } catch (e) {
     // رقابت Idempotency: خطای یکتایی → پرداخت موجود برگردانده می‌شود
     if (idemKey && e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-      const existing = await db.payment.findUnique({ where: { idempotencyKey: idemKey } })
+      // رقابت هم‌زمان روی همان کلید — پرداختِ ثبت‌شده در همین کلینیک برمی‌گردد
+      const existing = await db.payment.findFirst({ where: { idempotencyKey: idemKey } })
       if (existing) return NextResponse.json({ payment: { ...existing, date: existing.date.toISOString() }, duplicate: true })
     }
     const status = (e as { status?: number }).status ?? 500

@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { utcDayStart } from '@/lib/jalali'
 
 /** یادآوری‌های خودکار — کارتابل هوشمند منشی و مدیر */
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, _request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const now = new Date()
@@ -67,4 +65,4 @@ export async function GET() {
       newBookings: newBookings.length,
     },
   })
-}
+})

@@ -329,7 +329,7 @@ async function fallback(userMessage: string): Promise<{ answer: string; steps: A
 }
 
 export const POST = tenantHandler('ADMIN')(async (user, request) => {
-  const rl = rateLimit(`ai:${user.id}`, 20, 60_000)
+  const rl = await rateLimit(`ai:${user.clinicId}:${user.id}`, 20, 60_000)
   if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
 
   const body = await request.json().catch(() => ({}))

@@ -415,7 +415,9 @@ model Payment {
 
   @@index([date])
   @@index([clinicId])
-  idempotencyKey String? @unique // جلوگیری از پرداخت تکراری در Retry
+  idempotencyKey         String?  // جلوگیری از پرداخت تکراری — unique مرکب per-clinic
+  idempotencyFingerprint String?  // hash محتوای درخواست — کلید تکراری با محتوای متفاوت رد می‌شود
+  @@unique([clinicId, idempotencyKey])
 }
 
 model Check {

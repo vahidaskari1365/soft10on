@@ -1,31 +1,73 @@
-/** محدودیت نرخ درخواست (پنجره لغزان در حافظه — برای هر نمونه سرور) */
-const buckets = new Map<string, number[]>()
+import { Prisma } from '@prisma/client'
+import { db } from '@/lib/db'
 
-export function rateLimit(
-  key: string,
-  limit: number,
-  windowMs: number
-): { ok: boolean; retryAfterSec: number } {
-  const now = Date.now()
-  const arr = (buckets.get(key) ?? []).filter((t) => now - t < windowMs)
-  if (arr.length >= limit) {
-    buckets.set(key, arr)
-    return { ok: false, retryAfterSec: Math.max(1, Math.ceil((windowMs - (now - arr[0])) / 1000)) }
-  }
-  arr.push(now)
-  buckets.set(key, arr)
-  // پاکسازی دوره‌ای برای جلوگیری از رشد حافظه
-  if (buckets.size > 5000) {
-    for (const [k, v] of buckets) if (v.every((t) => now - t > windowMs)) buckets.delete(k)
-  }
-  return { ok: true, retryAfterSec: 0 }
-}
+/**
+ * محدودساز نرخ درخواست توزیع‌شده — Store مشترک دیتابیس (SystemMeta).
+ * - همهٔ Instanceها (Serverless) همان شمارنده را می‌بینند؛ برخلاف Map محلی.
+ * - اتمیک: قفل ردیف در UPDATE ... RETURNING — درخواست‌های هم‌زمان نمی‌توانند سقف را دور بزنند.
+ * - الگوریتم: شمارندهٔ پنجره ثابت (Fixed Window) با مقدار «شماره پنجره:تعداد».
+ * - Fail-Secure: در خطای Store، پاسخ منفی است (Endpoint حساس بدون کنترل ادامه نمی‌یابد).
+ *   دیتابیس خود وابستگی اصلی برنامه است؛ خطای آن به هر حال درخواست‌ها را شکست می‌دهد.
+ */
 
-/** استخراج IP کلاینت از هدرها (در Vercel: x-forwarded-for) */
+type LimitResult = { ok: boolean; retryAfterSec: number }
+
+const FAIL_CLOSED: LimitResult = { ok: false, retryAfterSec: 5 }
+
+/** استخراج IP کلاینت از هدرهای پلتفرم (در Vercel: x-forwarded-for توسط پلتفرم تنظیم می‌شود) */
 export function clientIp(request: Request): string {
   return (
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
     'local'
   )
+}
+
+/** پاکسازی دوره‌ای پنجره‌های منقضی — با احتمال کم تا هزینه هر درخواست ثابت بماند */
+function maybeCleanup(ws: number): void {
+  if (Math.random() > 0.02) return
+  const cutoff = String(ws - 2)
+  void db
+    .$executeRaw(
+      Prisma.sql`DELETE FROM "public"."SystemMeta" WHERE key LIKE 'rl:%' AND split_part(value, ':', 1)::bigint < ${cutoff}`,
+    )
+    .catch(() => {}) // پاکسازی best-effort است — عملیات اصلی را نمی‌شکند
+}
+
+/**
+ * بررسی و ثبت یک درخواست در سطل محدودیت (async).
+ * کلید توصیه‌شده: `<endpoint>:<clinicId?>:<userId|ip>` — نقش‌ها و Tenantهای مستقل سطل مستقل دارند.
+ */
+export async function rateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<LimitResult> {
+  const now = Date.now()
+  const ws = Math.floor(now / windowMs) // شماره پنجرهٔ جاری
+  const k = `rl:${key}:${windowMs}`
+  try {
+    // ساخت ردیف سطل در صورت نبود — رقابت با ON CONFLICT حل می‌شود
+    await db.$executeRaw(
+      Prisma.sql`INSERT INTO "public"."SystemMeta" ("key", "value") VALUES (${k}, ${`${ws}:0`}) ON CONFLICT ("key") DO NOTHING`,
+    )
+    // شمارش اتمیک: پنجرهٔ جدید → ریست؛ همان پنجره → +1 (قفل ردیف، مشترک بین instanceها)
+    const rows = await db.$queryRaw<{ value: string }[]>(
+      Prisma.sql`UPDATE "public"."SystemMeta" SET value = CASE
+          WHEN split_part(value, ':', 1)::bigint < ${ws} THEN ${`${ws}:1`}
+          ELSE split_part(value, ':', 1) || ':' || (split_part(value, ':', 2)::bigint + 1)
+        END WHERE key = ${k} RETURNING value`,
+    )
+    maybeCleanup(ws)
+    if (rows.length === 0) return FAIL_CLOSED // سطل موجود نیست؟ fail-secure
+    const count = Number(rows[0].value.split(':')[1] ?? 0)
+    if (count > limit) {
+      const retryAfterSec = Math.max(1, Math.ceil((windowMs - (now % windowMs)) / 1000))
+      return { ok: false, retryAfterSec }
+    }
+    return { ok: true, retryAfterSec: 0 }
+  } catch {
+    // خطای Store — Endpoint حساس نباید بدون محدودیت ادامه دهد
+    return FAIL_CLOSED
+  }
 }

@@ -8,7 +8,7 @@ import { logAudit } from '@/lib/audit'
 export async function POST(request: Request) {
   const ip = clientIp(request)
   // محدودیت نرخ ورود: حداکثر ۱۰ تلاش در دقیقه برای هر IP
-  const rl = rateLimit(`login:${ip}`, 10, 60_000)
+  const rl = await rateLimit(`login:${ip}`, 10, 60_000)
   if (!rl.ok) {
     await logAudit({ action: 'LOGIN', entity: 'User', result: 'DENIED', ip, meta: { reason: 'rate_limited' } })
     return NextResponse.json({ error: `تلاش‌های زیادی انجام شده؛ ${rl.retryAfterSec} ثانیه دیگر تلاش کنید` }, { status: 429 })

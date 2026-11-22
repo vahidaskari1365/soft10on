@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { vStr } from '@/lib/validation'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
 
 /** نسخه‌های بیمار — بیمار فقط نسخه‌های خودش؛ ثبت فقط پزشک یا مدیر */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, request) => {
   const { searchParams } = new URL(request.url)
   const patientId = searchParams.get('patient') || (session.role === 'PATIENT' ? session.patientId ?? '' : '')
   if (!patientId) return NextResponse.json({ error: 'شناسه بیمار لازم است' }, { status: 400 })
@@ -22,11 +20,9 @@ export async function GET(request: Request) {
     take: 50,
   })
   return NextResponse.json({ prescriptions })
-}
+})
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const POST = tenantHandler('DOCTOR', 'ADMIN')(async (session, request) => {
   if (session.role !== 'DOCTOR' && session.role !== 'ADMIN')
     return NextResponse.json({ error: 'صدور نسخه فقط توسط پزشک انجام می‌شود' }, { status: 403 })
 
@@ -79,4 +75,4 @@ export async function POST(request: Request) {
   await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'Prescription', entityId: prescription.id, branchId: session.branchId, clinicId: session.clinicId, meta: { items: items.length } })
 
   return NextResponse.json({ prescription }, { status: 201 })
-}
+})

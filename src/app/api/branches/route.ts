@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser, revokeAllSessions } from '@/lib/auth'
+import { revokeAllSessions } from '@/lib/auth'
 import { tenantHandler } from '@/lib/tenant'
 import { jMonthKey, monthKeyStart, monthKeyEnd } from '@/lib/jalali'
 import { formatToman } from '@/lib/format'
 
 /** لیست شعب + آمار ماه جاری هر شعبه */
-export async function GET() {
-  const user = await getSessionUser()
-  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, _request) => {
 
   const key = jMonthKey(new Date())
   const start = monthKeyStart(key)
@@ -65,7 +63,7 @@ export async function GET() {
     })
   }
   return NextResponse.json({ branches: out })
-}
+})
 
 /** ایجاد شعبه جدید — فقط مدیر کل */
 export const POST = tenantHandler('ADMIN')(async (user, request) => {

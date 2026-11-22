@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { llmChat, logAiCall } from '@/lib/ai'
 import { getClinicDNA } from '@/lib/clinic-dna'
 
 /** خلاصه‌ی هوشمند پرونده برای پزشک — «خلاصه آماده پیش از ویزیت» */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const POST = tenantHandler()(async (session, request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const started = Date.now()
   const body = (await request.json().catch(() => ({}))) as { patientId?: string }
@@ -68,4 +66,4 @@ ${timeline || 'بدون سند قبلی'}`
   }
 
   return NextResponse.json({ summary: raw.trim(), aiUsed: true })
-}
+})

@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { cashBalances } from '@/lib/accounting'
 
 /** صندوق‌ها و حساب‌های بانکی با موجودی زنده + آخرین تراکنش‌ها */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, request) => {
   if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const branchId = searchParams.get('branch') || undefined
@@ -34,13 +32,10 @@ export async function GET(request: Request) {
       cashAccount: p.cashAccount,
     })),
   })
-}
+})
 
 /** حساب جدید یا انتقال بین حساب‌ها */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as {
     action?: 'create' | 'transfer'
     name?: string
@@ -103,4 +98,4 @@ export async function POST(request: Request) {
     },
   })
   return NextResponse.json({ account }, { status: 201 })
-}
+})

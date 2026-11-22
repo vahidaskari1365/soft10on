@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser, revokeAllSessions } from '@/lib/auth'
+import { revokeAllSessions } from '@/lib/auth'
 import { hashPassword } from '@/lib/password'
 
 /** ویرایش کاربر (فعال/غیرفعال، تغییر شعبه، تغییر رمز) — فقط مدیر کل */
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getSessionUser()
-  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
+export const PATCH = tenantHandler('ADMIN')(async (user, request, { params }) => {
   const { id } = await params
 
   const body = await request.json().catch(() => ({}))
@@ -45,4 +43,4 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const updated = await db.user.update({ where: { id }, data })
   if (data.active === false) await revokeAllSessions(updated.id)
   return NextResponse.json({ user: { id: updated.id, username: updated.username, active: updated.active } })
-}
+})

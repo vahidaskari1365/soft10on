@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { vStr, vInt, vDate } from '@/lib/validation'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
 
 /** طرح‌های درمان بیمار — بیمار فقط طرح‌های خودش */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, request) => {
   const { searchParams } = new URL(request.url)
   const patientId = searchParams.get('patient') || (session.role === 'PATIENT' ? session.patientId ?? '' : '')
   if (!patientId) return NextResponse.json({ error: 'شناسه بیمار لازم است' }, { status: 400 })
@@ -22,12 +20,10 @@ export async function GET(request: Request) {
     take: 30,
   })
   return NextResponse.json({ plans })
-}
+})
 
 /** ایجاد طرح درمان با مراحل — پزشک یا مدیر */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const POST = tenantHandler('DOCTOR', 'ADMIN')(async (session, request) => {
   if (session.role !== 'DOCTOR' && session.role !== 'ADMIN')
     return NextResponse.json({ error: 'ثبت طرح درمان فقط توسط پزشک انجام می‌شود' }, { status: 403 })
 
@@ -81,12 +77,10 @@ export async function POST(request: Request) {
   await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'TreatmentPlan', entityId: plan.id, branchId: session.branchId, clinicId: session.clinicId, meta: { steps: plan.steps.length, total } })
 
   return NextResponse.json({ plan }, { status: 201 })
-}
+})
 
 /** به‌روزرسانی وضعیت طرح یا مرحله — پزشک یا مدیر */
-export async function PATCH(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const PATCH = tenantHandler('DOCTOR', 'ADMIN')(async (session, request) => {
   if (session.role !== 'DOCTOR' && session.role !== 'ADMIN')
     return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
@@ -125,4 +119,4 @@ export async function PATCH(request: Request) {
 
   const updated = await db.treatmentPlan.findUnique({ where: { id: planId }, include: { steps: { include: { service: { select: { name: true, price: true } } } }, doctor: { select: { id: true, name: true } } } })
   return NextResponse.json({ plan: updated })
-}
+})

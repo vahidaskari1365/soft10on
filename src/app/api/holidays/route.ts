@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { vStr, vDate, vEnum } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 
 const HOLIDAY_TYPES = ['OFFICIAL', 'CLINIC'] as const
 
 /** تعطیلات رسمی و اختصاصی کلینیک — مشاهده برای همه کارکنان، مدیریت با مدیر */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const branchId = searchParams.get('branchId') ?? undefined
@@ -24,12 +22,9 @@ export async function GET(request: Request) {
     include: { branch: { select: { name: true } } },
   })
   return NextResponse.json({ holidays })
-}
+})
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN')(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const date = vDate(body.date, 'تاریخ تعطیلی')
@@ -48,12 +43,9 @@ export async function POST(request: Request) {
   const holiday = await db.holiday.create({ data: { date: date.value, title: title.value, type: type.value, branchId } })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'Holiday', entityId: holiday.id, branchId, clinicId: session.clinicId })
   return NextResponse.json({ holiday }, { status: 201 })
-}
+})
 
-export async function DELETE(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const DELETE = tenantHandler('ADMIN')(async (session, request) => {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'شناسه لازم است' }, { status: 400 })
@@ -62,4 +54,4 @@ export async function DELETE(request: Request) {
   await db.holiday.delete({ where: { id } })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'DELETE', entity: 'Holiday', entityId: id, clinicId: session.clinicId })
   return NextResponse.json({ ok: true })
-}
+})

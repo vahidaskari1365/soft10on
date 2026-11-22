@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { logAudit } from '@/lib/audit'
 import { addTimeline } from '@/lib/timeline'
 
@@ -8,12 +8,11 @@ import { addTimeline } from '@/lib/timeline'
  * دانلود امن سند پزشکی — بدون احراز هویت هیچ فایلی قابل دریافت نیست.
  * بیمار فقط اسناد پرونده خودش؛ کارکنان اسناد بیماران تحت پوشش کلینیک.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const GET = tenantHandler()(async (session, _request, { params }) => {
   const { id } = await params
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
 
-  const doc = await db.document.findUnique({
+  // findFirst با scope خودکار — سند پزشکی کلینیک دیگر قابل دریافت نیست
+  const doc = await db.document.findFirst({
     where: { id },
     select: { id: true, patientId: true, title: true, mimeType: true, sizeBytes: true, data: true },
   })
@@ -35,15 +34,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       'X-Content-Type-Options': 'nosniff',
     },
   })
-}
+})
 
 /** حذف سند — فقط مدیر یا آپلودکننده؛ تایم‌لاین و حسابرسی ثبت می‌شود */
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const DELETE = tenantHandler()(async (session, _request, { params }) => {
   const { id } = await params
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
 
-  const doc = await db.document.findUnique({ where: { id }, select: { id: true, patientId: true, title: true, uploadedById: true } })
+  // findFirst با scope خودکار — حذف سند کلینیک دیگر ممکن نیست
+  const doc = await db.document.findFirst({ where: { id }, select: { id: true, patientId: true, title: true, uploadedById: true } })
   if (!doc) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
   const canDelete = session.role === 'ADMIN' || doc.uploadedById === session.id
@@ -56,4 +54,4 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   await addTimeline(doc.patientId, 'DOCUMENT', `حذف سند — ${doc.title}`, { actorName: session.fullName })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'DELETE', entity: 'Document', entityId: id, branchId: session.branchId, clinicId: session.clinicId, meta: { title: doc.title } })
   return NextResponse.json({ ok: true })
-}
+})

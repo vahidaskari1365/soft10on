@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { vStr, vInt, vEnum } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 
 const CATEGORIES = ['ترمیمی', 'جراحی', 'زیبایی', 'پیشگیری', 'تشخیص', 'ارتودنسی'] as const
 
 /** مدیریت خدمات کلینیک — مشاهده برای کارکنان؛ مدیریت فقط مدیر */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const active = searchParams.get('active')
@@ -18,12 +16,9 @@ export async function GET(request: Request) {
     orderBy: { name: 'asc' },
   })
   return NextResponse.json({ services })
-}
+})
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN')(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const name = vStr(body.name, { required: true, min: 2, max: 80, label: 'نام خدمت' })
@@ -63,12 +58,9 @@ export async function POST(request: Request) {
   })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'Service', entityId: service.id, clinicId: session.clinicId })
   return NextResponse.json({ service }, { status: 201 })
-}
+})
 
-export async function PATCH(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const PATCH = tenantHandler('ADMIN')(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const id = typeof body.id === 'string' ? body.id : ''
@@ -127,4 +119,4 @@ export async function PATCH(request: Request) {
   const service = await db.service.update({ where: { id }, data })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'UPDATE', entity: 'Service', entityId: id, clinicId: session.clinicId })
   return NextResponse.json({ service })
-}
+})

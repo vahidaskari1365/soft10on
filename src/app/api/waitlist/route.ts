@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 
 /** صف انتظار نوبت */
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, _request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const items = await db.waitlist.findMany({
     where: { status: { in: ['WAITING', 'OFFERED'] } },
@@ -26,12 +24,10 @@ export async function GET() {
       doctor: w.doctor,
     })),
   })
-}
+})
 
 /** افزودن به صف — { patientId, doctorId?, note?, priority? } یا { name, phone, ... } (بیمار ثبت‌نام‌نشده) */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const POST = tenantHandler()(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as {
     patientId?: string
     doctorId?: string
@@ -54,4 +50,4 @@ export async function POST(request: Request) {
     include: { patient: { select: { firstName: true, lastName: true } }, doctor: { select: { name: true } } },
   })
   return NextResponse.json({ item: { ...item, createdAt: item.createdAt.toISOString() } }, { status: 201 })
-}
+})

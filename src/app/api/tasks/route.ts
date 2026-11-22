@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, _request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const now = new Date()
   const tasks = await db.task.findMany({
@@ -19,12 +17,9 @@ export async function GET() {
     return a.dueAt.getTime() - b.dueAt.getTime()
   })
   return NextResponse.json({ tasks: sorted })
-}
+})
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler()(async (session, request) => {
   const body = await request.json()
   const { title, description, assigneeRole, assigneeName, patientId, dueAt, priority, source } = body as {
     title: string
@@ -50,4 +45,4 @@ export async function POST(request: Request) {
     },
   })
   return NextResponse.json({ task })
-}
+})

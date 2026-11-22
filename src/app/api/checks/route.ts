@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { CHECK_STATUS } from '@/lib/accounting'
 
 /** لیست چک‌های دریافتی و صادره */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, request) => {
   if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const direction = searchParams.get('direction') ?? ''
@@ -54,13 +52,10 @@ export async function GET(request: Request) {
       dueSoon: inHand.filter((c) => c.dueInDays <= 7).length,
     },
   })
-}
+})
 
 /** ثبت چک جدید — { direction, number, bank, dueDate, amount, patientId?, supplierName?, cashAccountId?, note? } */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as {
     direction?: string
     number?: string
@@ -95,4 +90,4 @@ export async function POST(request: Request) {
     include: { patient: { select: { firstName: true, lastName: true } } },
   })
   return NextResponse.json({ check: { ...check, dueDate: check.dueDate.toISOString() } }, { status: 201 })
-}
+})

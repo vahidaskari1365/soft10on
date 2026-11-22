@@ -1,23 +1,18 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { vStr, vInt, vEnum } from '@/lib/validation'
 
 const PERIODS = ['MONTHLY', 'YEARLY'] as const
 
 /** پلن‌های اشتراک SaaS — مشاهده برای کارکنان؛ مدیریت فقط مدیر */
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = platformHandler()(async (session, _request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const plans = await db.plan.findMany({ orderBy: { price: 'asc' }, include: { clinics: { select: { id: true, name: true, isActive: true } } } })
   return NextResponse.json({ plans })
-}
+})
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN')(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const name = vStr(body.name, { required: true, min: 2, max: 40, label: 'نام پلن' })
@@ -48,12 +43,9 @@ export async function POST(request: Request) {
     },
   })
   return NextResponse.json({ plan }, { status: 201 })
-}
+})
 
-export async function PATCH(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const PATCH = tenantHandler('ADMIN')(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const id = typeof body.id === 'string' ? body.id : ''
@@ -68,4 +60,4 @@ export async function PATCH(request: Request) {
   if (body.aiCallsLimit !== undefined) data.aiCallsLimit = Math.max(0, Math.round(Number(body.aiCallsLimit) || 0))
   const updated = await db.plan.update({ where: { id }, data: data as { price?: number; active?: boolean; maxUsers?: number; aiCallsLimit?: number } })
   return NextResponse.json({ plan: updated })
-}
+})

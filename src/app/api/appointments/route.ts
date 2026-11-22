@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { validateApptTime, doctorHasConflict } from '@/lib/scheduling'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
 
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const date = searchParams.get('date')
@@ -32,12 +30,9 @@ export async function GET(request: Request) {
     orderBy: { start: 'asc' },
   })
   return NextResponse.json({ appointments: appts })
-}
+})
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler()(async (session, request) => {
   const body = await request.json()
   const { patientId, newPatient, doctorId, serviceId, start, source, note } = body as {
     patientId?: string
@@ -156,4 +151,4 @@ export async function POST(request: Request) {
   await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'Appointment', entityId: appt.id, branchId: appt.branchId, clinicId: session.clinicId })
 
   return NextResponse.json({ appointment: appt }, { status: 201 })
-}
+})

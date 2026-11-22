@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { aiEngine, invalidateAiConfig, testAiProvider } from '@/lib/ai'
 
 const DNA_KEYS = ['clinic_dna_tone', 'clinic_dna_rules', 'clinic_dna_processes', 'clinic_name', 'clinic_tagline']
@@ -12,14 +12,7 @@ function mask(key: string | undefined | null): string {
 }
 
 /** تنظیمات سیستم — فقط مدیر کل */
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) {
-    return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  }
-  if (session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
-  }
+export const GET = tenantHandler('ADMIN')(async (session, _request) => {
   const keyMeta = await db.systemMeta.findUnique({ where: { key: 'ai_api_key' } })
   const metas = await db.systemMeta.findMany({ where: { key: { in: [...DNA_KEYS, 'ai_base_url', 'ai_model'] } } })
   const map = Object.fromEntries(metas.map((m) => [m.key, m.value]))
@@ -39,17 +32,10 @@ export async function GET() {
       processes: map['clinic_dna_processes'] ?? '',
     },
   })
-}
+})
 
 /** ذخیره تنظیمات — بدنه: { ai?: {baseUrl, apiKey?, model}, dna?: {...} } */
-export async function PUT(request: Request) {
-  const session = await getSessionUser()
-  if (!session) {
-    return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  }
-  if (session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
-  }
+export const PUT = tenantHandler('ADMIN')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as {
     ai?: { baseUrl?: string; apiKey?: string; model?: string }
     dna?: { clinicName?: string; tagline?: string; tone?: string; rules?: string; processes?: string }
@@ -83,17 +69,10 @@ export async function PUT(request: Request) {
 
   const engine = await aiEngine()
   return NextResponse.json({ ok: true, engine: engine.label })
-}
+})
 
 /** تست اتصال پرووایدر — { baseUrl, apiKey?, model? } (apiKey خالی = از ذخیره‌شده) */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) {
-    return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  }
-  if (session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
-  }
+export const POST = tenantHandler('ADMIN')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as { baseUrl?: string; apiKey?: string; model?: string }
   let baseUrl = (body.baseUrl ?? '').trim()
   let apiKey = (body.apiKey ?? '').trim()
@@ -109,4 +88,4 @@ export async function POST(request: Request) {
   }
   const result = await testAiProvider(baseUrl, apiKey, model)
   return NextResponse.json(result)
-}
+})

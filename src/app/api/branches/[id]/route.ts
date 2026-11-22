@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 
 /** ویرایش شعبه — فقط مدیر کل */
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getSessionUser()
-  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
+export const PATCH = tenantHandler('ADMIN')(async (session, request, { params }) => {
   const { id } = await params
 
   const body = await request.json().catch(() => ({}))
@@ -23,13 +20,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const branch = await db.branch.update({ where: { id }, data })
   return NextResponse.json({ branch })
-}
+})
 
 /** تعطیلی (غیرفعال‌سازی) شعبه — فقط مدیر کل */
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getSessionUser()
-  if (!user) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'فقط مدیر کل مجاز است' }, { status: 403 })
+export const DELETE = tenantHandler('ADMIN')(async (session, request, { params }) => {
   const { id } = await params
 
   const doctorCount = await db.doctor.count({ where: { branchId: id, active: true } })
@@ -38,4 +32,4 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
   const branch = await db.branch.update({ where: { id }, data: { isActive: false } })
   return NextResponse.json({ branch })
-}
+})

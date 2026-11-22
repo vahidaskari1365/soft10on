@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 
-export async function GET() {
-  const user = await getSessionUser()
-  return NextResponse.json({ user })
-}
+export const GET = tenantHandler()(async (session) => {
+  return NextResponse.json({ user: session })
+})

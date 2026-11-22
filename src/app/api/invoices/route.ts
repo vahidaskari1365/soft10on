@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { assertBranch, tenantHandler } from '@/lib/tenant'
+import { rateLimit } from '@/lib/ratelimit'
 import { postJournal, ACC } from '@/lib/ledger'
 import { monthKeyStart, monthKeyEnd, lastNMonthKeys } from '@/lib/jalali'
 import { nextInvoiceNumber, refreshInvoiceStatus } from '@/lib/accounting'
@@ -64,6 +65,8 @@ export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', '
 
 /** صدور فاکتور — { patientId?, branchId?, discount, note, items: [{kind, refId, title, qty, unitPrice}] } */
 export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTANT')(async (session, request) => {
+  const rl = await rateLimit(`inv:${session.clinicId}:${session.id}`, 30, 60_000)
+  if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های صدور فاکتور زیاد است' }, { status: 429 })
   const body = (await request.json().catch(() => ({}))) as {
     patientId?: string
     branchId?: string

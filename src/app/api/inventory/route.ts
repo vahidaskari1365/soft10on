@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/auth'
 import { postJournal, ACC } from '@/lib/ledger'
 import { db } from '@/lib/db'
 import { assertBranch, tenantHandler } from '@/lib/tenant'
+import { rateLimit } from '@/lib/ratelimit'
 import { logAudit } from '@/lib/audit'
 
 /** مشاهده انبار — فقط محصولات/خرید/فروش کلینیک خود کاربر (scope خودکار Extension) */
@@ -23,6 +24,8 @@ export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTANT
  * - خرید: qty صحیح مثبت | فروش: قیمت از کالا مگر override مثبت معتبر
  */
 export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST')(async (session, request) => {
+  const rl = await rateLimit(`stk:${session.clinicId}:${session.id}`, 30, 60_000)
+  if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های انبار زیاد است' }, { status: 429 })
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const bodyTyped = body as {
     type?: string

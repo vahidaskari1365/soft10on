@@ -19,17 +19,19 @@ type AuditInput = {
  * فقط شناسه‌ها، نوع عملیات و متادیتای ایمن. خطای لاگ عملیات اصلی را نمی‌شکند.
  */
 export async function logAudit(opts: AuditInput, tx?: Prisma.TransactionClient): Promise<void> {
+  const { meta, ...rest } = opts
+  // داخل تراکنش caller: شکست Audit = شکست عملیات اصلی (فینancial integrity) — خطا بلعیده نمی‌شود
+  if (tx) {
+    await tx.auditLog.create({
+      data: { ...rest, result: rest.result ?? 'SUCCESS', meta: (meta as object) ?? undefined },
+    })
+    return
+  }
   try {
-    const { meta, ...rest } = opts
-    // داخل تراکنش caller ثبت می‌شود تا شکست Audit = شکست عملیات اصلی باشد
-    await (tx ?? db).auditLog.create({
-      data: {
-        ...rest,
-        result: rest.result ?? 'SUCCESS',
-        meta: (meta as object) ?? undefined,
-      },
+    await db.auditLog.create({
+      data: { ...rest, result: rest.result ?? 'SUCCESS', meta: (meta as object) ?? undefined },
     })
   } catch {
-    // حسابرسی best-effort است
+    // خارج از تراکنش: best-effort — عملیات اصلی را نمی‌شکند
   }
 }

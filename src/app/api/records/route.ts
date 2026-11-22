@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 
 /** پرونده‌ی هوشمند یک بیمار + شناسنامه (حساسیت، بارداری، زمینه) */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, request) => {
   const { searchParams } = new URL(request.url)
   const patientId = searchParams.get('patient') || (session.role === 'PATIENT' ? session.patientId ?? '' : '')
   if (!patientId) return NextResponse.json({ error: 'شناسه بیمار لازم است' }, { status: 400 })
@@ -46,13 +44,10 @@ export async function GET(request: Request) {
       doctor: r.doctor?.name ?? null,
     })),
   })
-}
+})
 
 /** ثبت سند پرونده — { patientId, type, title, content, doctorId?, source? } */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler()(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as {
     patientId?: string
     type?: string
@@ -85,13 +80,10 @@ export async function POST(request: Request) {
     await db.patient.update({ where: { id: body.patientId }, data: { allergies: list } })
   }
   return NextResponse.json({ record: { ...record, date: record.date.toISOString() } }, { status: 201 })
-}
+})
 
 /** به‌روزرسانی شناسنامه — { patientId, allergies?, isPregnant?, chronicNote? } */
-export async function PATCH(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const PATCH = tenantHandler()(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as {
     patientId?: string
     allergies?: string
@@ -108,4 +100,4 @@ export async function PATCH(request: Request) {
     },
   })
   return NextResponse.json({ ok: true, allergies: patient.allergies, isPregnant: patient.isPregnant, chronicNote: patient.chronicNote })
-}
+})

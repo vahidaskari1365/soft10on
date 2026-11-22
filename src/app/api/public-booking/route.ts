@@ -16,8 +16,12 @@ export async function POST(request: Request) {
   const phone = body.phone?.trim()
   if (!name || !phone) return NextResponse.json({ error: 'نام و شماره تماس الزامی است' }, { status: 400 })
 
+  // رزرو عمومی بدون سشن — clinicId از شعبهٔ انتخابی مشتق و اعتبارسنجی می‌شود
+  const br = body.branchId ? await db.branch.findUnique({ where: { id: String(body.branchId) }, select: { clinicId: true } }) : null
+  if (!br) return NextResponse.json({ error: 'شعبهٔ انتخابی معتبر نیست' }, { status: 400 })
   const booking = await db.publicBooking.create({
     data: {
+      clinicId: br.clinicId,
       branchId: body.branchId || null,
       name,
       phone,
@@ -30,6 +34,7 @@ export async function POST(request: Request) {
   // کار یادآوری برای منشی پذیرش
   await db.task.create({
     data: {
+      clinicId: br.clinicId,
       branchId: body.branchId || null,
       title: `درخواست رزرو عمومی — ${name}`,
       description: `${name} (${phone}) از صفحه‌ی عمومی درخواست نوبت ثبت کرد${body.note ? ` — یادداشت: ${body.note}` : ''}`,

@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 
 /** گزارش حسابرسی — فقط مدیر؛ فیلتر بر اساس کاربر، موجودیت و عملیات */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler('ADMIN')(async (session, request) => {
   if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
@@ -21,4 +19,4 @@ export async function GET(request: Request) {
     include: { user: { select: { fullName: true, role: true } } },
   })
   return NextResponse.json({ logs })
-}
+})

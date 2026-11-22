@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { monthKeyStart, monthKeyEnd, shiftJMonth, jMonthKey } from '@/lib/jalali'
 
 /**
  * گزارش‌های مدیریتی تجمیعی (فیلتر ماه شمسی + شعبه)
  * ADMIN: همه گزارش‌ها | RECEPTIONIST: بدون داده مالی
  */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST')
-    return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const GET = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, request) => {
 
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
@@ -151,4 +147,4 @@ export async function GET(request: Request) {
       : null,
     trend,
   })
-}
+})

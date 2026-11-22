@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { vStr, vEnum, vInt } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 
 const ROOM_TYPES = ['ROOM', 'UNIT'] as const
 
 /** اتاق‌ها و یونیت‌ها — مشاهده برای کارکنان، مدیریت فقط مدیر */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const branchId = searchParams.get('branchId') ?? undefined
@@ -19,12 +17,9 @@ export async function GET(request: Request) {
     orderBy: [{ branchId: 'asc' }, { name: 'asc' }],
   })
   return NextResponse.json({ rooms })
-}
+})
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN')(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const name = vStr(body.name, { required: true, min: 2, max: 60, label: 'نام اتاق/یونیت' })
@@ -50,12 +45,9 @@ export async function POST(request: Request) {
   })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'RoomUnit', entityId: room.id, branchId, clinicId: session.clinicId })
   return NextResponse.json({ room }, { status: 201 })
-}
+})
 
-export async function PATCH(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const PATCH = tenantHandler('ADMIN')(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const id = typeof body.id === 'string' ? body.id : ''
@@ -88,12 +80,9 @@ export async function PATCH(request: Request) {
   const updated = await db.roomUnit.update({ where: { id }, data })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'UPDATE', entity: 'RoomUnit', entityId: id, branchId: room.branchId, clinicId: session.clinicId })
   return NextResponse.json({ room: updated })
-}
+})
 
-export async function DELETE(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const DELETE = tenantHandler('ADMIN')(async (session, request) => {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'شناسه لازم است' }, { status: 400 })
@@ -103,4 +92,4 @@ export async function DELETE(request: Request) {
   await db.roomUnit.update({ where: { id }, data: { active: false } })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'DELETE', entity: 'RoomUnit', entityId: id, branchId: room.branchId, clinicId: session.clinicId })
   return NextResponse.json({ ok: true })
-}
+})

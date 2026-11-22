@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { llmChat, logAiCall } from '@/lib/ai'
 import { getClinicDNA, getKnowledgeBase } from '@/lib/clinic-dna'
 
 /** صندوق پیام‌ها — رشته‌های گفتگو با بیماران + تعداد خوانده‌نشده */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, request) => {
 
   const { searchParams } = new URL(request.url)
   const patientId = searchParams.get('patient')
@@ -76,16 +74,14 @@ export async function GET(request: Request) {
     threads: [...threads.values()].sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1)),
     totalUnread: [...threads.values()].reduce((s, t) => s + t.unread, 0),
   })
-}
+})
 
 /**
  * ارسال پیام
  * - منشی/پزشک/مدیر: { patientId, body } → OUT
  * - بیمار: { body } → IN + پاسخ خودکار هوشمند (فقط وقتی از سمت بیمار می‌آید)
  */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const POST = tenantHandler()(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as { patientId?: string; body?: string }
   const text = body.body?.trim()
   if (!text) return NextResponse.json({ error: 'متن پیام خالی است' }, { status: 400 })
@@ -150,4 +146,4 @@ ${kb}
     },
   })
   return NextResponse.json({ sent: true, id: msg.id }, { status: 201 })
-}
+})

@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 
 /** آمار عملکرد دستیارهای هوشمند — فقط مدیر کل */
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler('ADMIN')(async (session, _request) => {
   if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000)
@@ -54,4 +52,4 @@ export async function GET() {
       createdAt: c.createdAt.toISOString(),
     })),
   })
-}
+})

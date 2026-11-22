@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 
 /**
  * تقویم نوبت‌ها — بازه‌ای (روز/هفته/ماه) با فیلتر شعبه، پزشک، خدمت و وضعیت.
  * هر نوبت با پزشک، خدمت، اتاق و بیمار برای نمایش روی تقویم.
  */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler()(async (session, request) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
@@ -57,4 +55,4 @@ export async function GET(request: Request) {
     appointments,
     summary: { total: appointments.length, byStatus, byDoctor },
   })
-}
+})

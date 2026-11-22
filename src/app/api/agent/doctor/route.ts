@@ -65,7 +65,8 @@ function buildTools(ctx: { doctorId: string; doctorName: string; branchId: strin
         const title = String(args.title ?? '').trim()
         const content = String(args.content ?? '').trim()
         if (!patientId || !title || !content) return { error: 'شناسه بیمار، عنوان و متن الزامی است' }
-        const patient = await db.patient.findUnique({ where: { id: patientId }, select: { id: true } })
+        // findFirst با scope خودکار کلینیک + کنترل صریح مالکیت — IDOR پزشکی مسدود
+        const patient = await db.patient.findFirst({ where: { id: patientId }, select: { id: true, clinicId: true } })
         if (!patient) return { error: 'بیمار یافت نشد' }
         const record = await db.medicalRecord.create({
           data: {
@@ -110,7 +111,8 @@ function buildTools(ctx: { doctorId: string; doctorName: string; branchId: strin
 
 /** نکات ایمنی بیمار — حساسیت، بارداری، بیماری زمینه‌ای */
 async function patientSafety(patientId: string) {
-  const patient = await db.patient.findUnique({
+  // findFirst با scope خودکار کلینیک (Extension) — پروندهٔ کلینیک دیگر قابل خواندن نیست
+  const patient = await db.patient.findFirst({
     where: { id: patientId },
     include: {
       medicalRecords: { orderBy: { date: 'desc' }, take: 12, include: { doctor: { select: { name: true } } } },
@@ -153,7 +155,7 @@ const SYSTEM = `شما «10on» هستید؛ دستیار پزشک هوشمند.
 - پاسخ نهایی کوتاه، منظم و فارسی باشد.`
 
 export const POST = tenantHandler('DOCTOR')(async (user, request) => {
-  const rl = rateLimit(`ai:${user.id}`, 20, 60_000)
+  const rl = await rateLimit(`ai:${user.clinicId}:${user.id}`, 20, 60_000)
   if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
 
   const body = await request.json().catch(() => ({}))

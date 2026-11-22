@@ -1,26 +1,21 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { vStr, vPhone } from '@/lib/validation'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
 
 /** مدیریت تماس اضطراری بیمار — کارکنان؛ بیمار فقط برای پرونده خودش (مشاهده و ویرایش خودش) */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const GET = tenantHandler()(async (session, request, { params }) => {
   const { id } = await params
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
   if (session.role === 'PATIENT' && session.patientId !== id)
     return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const contacts = await db.emergencyContact.findMany({ where: { patientId: id }, orderBy: { createdAt: 'asc' } })
   return NextResponse.json({ contacts })
-}
+})
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const POST = tenantHandler()(async (session, request, { params }) => {
   const { id } = await params
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const name = vStr(body.name, { required: true, min: 2, max: 80, label: 'نام تماس اضطراری' })
@@ -43,13 +38,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'EmergencyContact', entityId: contact.id, branchId: session.branchId, clinicId: session.clinicId })
 
   return NextResponse.json({ contact }, { status: 201 })
-}
+})
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const DELETE = tenantHandler()(async (session, request, { params }) => {
   const { id } = await params
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
   const contactId = searchParams.get('contactId')
@@ -61,4 +53,4 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   await db.emergencyContact.delete({ where: { id: contactId } })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'DELETE', entity: 'EmergencyContact', entityId: contactId, branchId: session.branchId, clinicId: session.clinicId })
   return NextResponse.json({ ok: true })
-}
+})

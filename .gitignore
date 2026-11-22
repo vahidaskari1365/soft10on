@@ -64,3 +64,4 @@ server.log
 /scripts/*
 !/scripts/*.py
 /agent-ctx/
+prisma/core

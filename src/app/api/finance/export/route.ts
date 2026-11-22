@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 import { monthKeyStart, monthKeyEnd, lastNMonthKeys } from '@/lib/jalali'
 import { PAYMENT_METHOD_LABEL } from '@/lib/accounting'
 import { EXPENSE_CATEGORY_LABEL } from '@/lib/format'
@@ -11,9 +11,7 @@ function csvCell(v: string | number | null | undefined): string {
 }
 
 /** خروجی CSV گزارش ماه — ?type=ledger|expenses|invoices&month=1405-08 */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const GET = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, request) => {
   if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
@@ -76,4 +74,4 @@ export async function GET(request: Request) {
       'Content-Disposition': `attachment; filename="${filename}"`,
     },
   })
-}
+})

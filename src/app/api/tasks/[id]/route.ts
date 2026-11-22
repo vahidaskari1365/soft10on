@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
+import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
+export const PATCH = tenantHandler()(async (session, request, { params }) => {
   if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const { id } = await params
   const body = await request.json()
@@ -16,4 +14,4 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     data: { status, doneAt: status === 'DONE' ? new Date() : null },
   })
   return NextResponse.json({ task })
-}
+})

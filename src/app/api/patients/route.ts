@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { tenantHandler } from '@/lib/tenant'
+import { rateLimit } from '@/lib/ratelimit'
 import { vStr, vPhone, vNationalId, vEmail, vInt, vEnum, vDate, BLOOD_TYPES, GENDERS, PATIENT_STATUS, POSTAL_CODE_RE } from '@/lib/validation'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
@@ -43,6 +44,8 @@ export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', '
 
 /** ثبت بیمار جدید — فقط کارکنان؛ اعتبارسنجی کامل هویتی و پزشکی */
 export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', 'ACCOUNTANT')(async (session, request) => {
+  const rl = await rateLimit(`pat:${session.clinicId}:${session.id}`, 30, 60_000)
+  if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های ثبت بیمار زیاد است' }, { status: 429 })
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
 
   const firstName = vStr(body.firstName, { required: true, min: 2, max: 60, label: 'نام' })
