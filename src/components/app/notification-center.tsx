@@ -50,7 +50,11 @@ export function NotificationCenter({ onNavigate }: { onNavigate: (section: strin
   const [readKeys, setReadKeys] = useState<Set<string>>(new Set())
 
   const load = useCallback(() => {
-    fetch('/api/reminders').then((r) => r.json()).then((d) => setData((d as Reminders) ?? null)).catch(() => {})
+    fetch('/api/reminders')
+      .then((r) => r.json())
+      // فقط پاسخ با شکل درست ست می‌شود؛ بدنه‌های خطا (مثل 403) → null تا کرش نکند
+      .then((d) => setData(d && (d as Reminders).counts ? (d as Reminders) : null))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {

@@ -233,7 +233,8 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
             </div>
             <div className="flex items-center gap-2">
               <GlobalSearch onNavigate={setSection} />
-              <NotificationCenter onNavigate={setSection} />
+              {/* داده اعلان‌ها فقط برای نقش‌های کارکنان است؛ برای بیمار fetch بی‌فایده 403 می‌گیرد */}
+              {user.role !== 'PATIENT' && <NotificationCenter onNavigate={setSection} />}
               <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/[0.08] text-gold-foreground/80 px-3 py-1 text-[11px] font-semibold">
                 <RoleIcon className="h-3.5 w-3.5" />
                 {ROLE_LABEL[user.role] ?? user.role}

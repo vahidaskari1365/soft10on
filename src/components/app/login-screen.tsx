@@ -12,6 +12,7 @@ const DEMO: { username: string; role: string; label: string; icon: typeof Shield
   { username: 'manager', role: 'ADMIN', label: 'مدیر کل', icon: ShieldCheck, color: '#0284C7', desc: 'داشبورد، شعب، پرسنل، مالی' },
   { username: 'doctor', role: 'DOCTOR', label: 'دکتر', icon: Stethoscope, color: '#0D9488', desc: 'برنامه من، بیماران، کارنامه' },
   { username: 'reception', role: 'RECEPTIONIST', label: 'منشی پذیرش', icon: Headset, color: '#38BDF8', desc: 'نوبت‌ها، کارتابل، دستیار' },
+  { username: 'reception2', role: 'RECEPTIONIST', label: 'منشی ولیعصر', icon: Headset, color: '#D97706', desc: 'شعبه ولیعصر، نوبت‌ها، کارتابل' },
   { username: 'patient', role: 'PATIENT', label: 'بیمار', icon: UserRound, color: '#B08D57', desc: 'پرتال من، رزرو با شینا' },
 ]
 
@@ -30,12 +31,22 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: user, password: pass }),
       })
-      const data = await res.json()
+      let data: { error?: string; user?: SessionUser } | null = null
+      try {
+        data = await res.json()
+      } catch {
+        data = null
+      }
       if (!res.ok) {
-        setError(data.error ?? 'خطا در ورود')
+        setError(
+          data?.error ??
+            (res.status >= 500
+              ? 'خطای سرور — تنظیمات محیطی هاست (DATABASE_URL / AUTH_SECRET) را بررسی کنید'
+              : 'خطا در ورود')
+        )
         return
       }
-      onLogin(data.user as SessionUser)
+      onLogin(data!.user as SessionUser)
     } catch {
       setError('ارتباط با سرور برقرار نشد')
     } finally {
@@ -136,12 +147,17 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
                 return (
                   <button
                     key={d.username}
-                    onClick={() => login(d.username, '123456', d.username)}
+                    onClick={() => {
+                      setUsername(d.username)
+                      setPassword('123456')
+                      login(d.username, '123456', d.username)
+                    }}
                     disabled={loading !== null}
                     aria-label={`ورود سریع به عنوان ${d.label}`}
                     className={cn(
                       'group text-right rounded-2xl border bg-background p-3.5 transition-all card-hover outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-60',
-                      'border-border hover:border-sky-200'
+                      'border-border hover:border-sky-200',
+                      d.username === 'patient' && 'col-span-2'
                     )}
                   >
                     <div className="flex items-center justify-between">

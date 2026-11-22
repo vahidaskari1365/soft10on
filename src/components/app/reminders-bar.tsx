@@ -17,7 +17,11 @@ export function RemindersBar({ onNavigate }: { onNavigate?: (section: string) =>
   const [data, setData] = useState<Reminders | null>(null)
 
   useEffect(() => {
-    fetch('/api/reminders').then((r) => r.json()).then((d) => setData((d as Reminders) ?? null)).catch(() => {})
+    fetch('/api/reminders')
+      .then((r) => r.json())
+      // فقط پاسخ با شکل درست ست می‌شود؛ بدنه‌های خطا (مثل 403) → null تا کرش نکند
+      .then((d) => setData(d && (d as Reminders).counts ? (d as Reminders) : null))
+      .catch(() => {})
   }, [])
 
   if (!data) return null
