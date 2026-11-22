@@ -277,7 +277,17 @@ function AddAppointmentDialog({
   const [deposit, setDeposit] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const [roomId, setRoomId] = useState<string>('')
+  const [rooms, setRooms] = useState<{ id: string; name: string; type: string }[]>([])
   // فهرست بیماران/پزشکان/خدمات از طریق props از والد می‌آید و اینجا بارگیری مجدد نمی‌شود
+  // اتاق/یونیت‌های شعبه — برای تخصیص اختیاری نوبت به اتاق
+  useEffect(() => {
+    if (!open) return
+    fetch('/api/rooms')
+      .then((r) => r.json())
+      .then((j) => setRooms((j.rooms ?? []).filter((x: { active?: boolean }) => x.active !== false)))
+      .catch(() => {})
+  }, [open])
 
   const submit = async () => {
     if (!patientId || !doctorId || !serviceId) {
@@ -294,6 +304,7 @@ function AddAppointmentDialog({
         patientId, doctorId, serviceId, start: start.toISOString(), source: 'PANEL',
         reason: reason.trim() || undefined,
         deposit: deposit ? Math.max(0, Math.round(Number(deposit) || 0)) : undefined,
+        roomUnitId: roomId && roomId !== '—' ? roomId : undefined,
       }),
     })
     setSaving(false)
@@ -387,6 +398,18 @@ function AddAppointmentDialog({
           <div>
             <label className="text-xs font-medium text-muted-foreground">بیعانه (تومان)</label>
             <Input className="rounded-xl mt-1" dir="ltr" value={deposit} onChange={(e) => setDeposit(e.target.value.replace(/\D/g, ''))} placeholder="0" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">اتاق / یونیت (اختیاری)</label>
+            <Select value={roomId} onValueChange={setRoomId}>
+              <SelectTrigger className="w-full rounded-xl mt-1"><SelectValue placeholder="بدون تخصیص" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="—">بدون تخصیص</SelectItem>
+                {rooms.map((rm) => (
+                  <SelectItem key={rm.id} value={rm.id}>{rm.type === 'UNIT' ? 'یونیت' : 'اتاق'} {rm.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {err ? <div className="text-xs text-rose-600 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2">{err}</div> : null}
           <Button className="w-full rounded-xl" onClick={submit} disabled={saving}>

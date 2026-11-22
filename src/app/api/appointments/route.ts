@@ -65,6 +65,8 @@ export async function POST(request: Request) {
     }
   }
   if (!pid) return NextResponse.json({ error: 'بیمار مشخص نیست' }, { status: 400 })
+  const patientRec = await db.patient.findUnique({ where: { id: pid }, select: { id: true } })
+  if (!patientRec) return NextResponse.json({ error: 'بیمار یافت نشد' }, { status: 404 })
 
   const service = await db.service.findUnique({ where: { id: serviceId } })
   if (!service) return NextResponse.json({ error: 'خدمت یافت نشد' }, { status: 400 })
@@ -88,7 +90,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'شعبه در روز جمعه تعطیل است' }, { status: 400 })
     }
     const closeH = isFri ? (branchRec.thuCloseHour ?? branchRec.closeHour) : branchRec.closeHour
-    const endHour = (startMs + Math.max(service.durationMin, 15) * 60_000) / 3_600_000
+    const endHour = hour + Math.max(service.durationMin, 15) / 60
     if (hour < branchRec.openHour || endHour > closeH + 1) {
       return NextResponse.json({ error: `ساعت نوبت خارج از ساعات کاری شعبه (${branchRec.openHour} تا ${closeH}) است` }, { status: 400 })
     }
