@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { PrismaClient } from '@prisma/client'
+import { cleanEnvValue } from './env-value'
 
 // ------------------------------------------------------------------
 // بوت‌استرپ دیتابیس برای استقرار سرورلس (Vercel و مشابه)
@@ -82,7 +83,10 @@ function bootstrapSqliteFallback(url: string) {
  * خطا نباید مقدار تلاش‌شده یا بخشی از رشته اتصال را نشان دهد.
  */
 function requireDatabaseUrl() {
-  const url = process.env.DATABASE_URL ?? ''
+  // مقدار paste شده در پنل ممکن است کل خط یا داخل نقل‌قول باشد — پاک‌سازی و بازنویسی
+  const raw = process.env.DATABASE_URL ?? ''
+  const url = cleanEnvValue(raw, 'DATABASE_URL')
+  if (url !== raw) process.env.DATABASE_URL = url
 
   // PostgreSQL/Supabase — بدون بوت‌استرپ
   if (url.startsWith('postgres')) return

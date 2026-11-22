@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { db } from '@/lib/db'
+import { cleanEnvValue } from '@/lib/env-value'
 
 const COOKIE = 'sina_session'
 const MAX_AGE = 60 * 60 * 24 * 30 // ۳۰ روز
@@ -13,7 +14,10 @@ const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'pro
  * secret پیش‌فرض ثابت وجود ندارد. fallback فقط برای توسعه محلی است.
  */
 function getSecret(): string {
-  const s = process.env.AUTH_SECRET
+  // مقدار paste شده در پنل ممکن است کل خط یا داخل نقل‌قول باشد — پاک‌سازی و بازنویسی
+  const raw = process.env.AUTH_SECRET ?? ''
+  const s = cleanEnvValue(raw, 'AUTH_SECRET')
+  if (s !== raw) process.env.AUTH_SECRET = s
   if (s && s.length >= 32) return s
   if (isProduction) {
     throw new Error(
