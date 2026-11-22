@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client'
+import { db } from '../src/lib/db'
 import { jMonthKey, monthKeyStart, monthKeyEnd, faDigits, utcDayStart } from '../src/lib/jalali'
 import { hashPassword } from '../src/lib/password'
-
-const db = new PrismaClient()
+import { withTenantContext } from '../src/lib/tenant-als'
 
 // گارد Production — seed دمو هرگز روی محیط عملیاتی اجرا نمی‌شود مگر با اجازهٔ صریح
 const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
@@ -36,6 +35,7 @@ function at(d: Date, h: number, m = 0) {
   return x
 }
 
+
 async function main() {
   console.log(' seeding…')
 
@@ -57,7 +57,11 @@ async function main() {
   await db.expense.deleteMany()
   await db.productSale.deleteMany()
   await db.purchaseItem.deleteMany()
-  await db.purchase.deleteMany()
+  
+}
+
+async function seedAll(): Promise<void> {
+await db.purchase.deleteMany()
   await db.product.deleteMany()
   await db.task.deleteMany()
   await db.appointment.deleteMany()
@@ -66,6 +70,26 @@ async function main() {
   await db.doctor.deleteMany()
   await db.branch.deleteMany()
   await db.systemMeta.deleteMany()
+
+  // ---------- کدینگ حساب‌ها (global — پیش‌نیاز اسناد مالی) ----------
+  const chart: { code: string; name: string; type: string }[] = [
+    { code: '1001', name: 'صندوق', type: 'ASSET' },
+    { code: '1002', name: 'بانک', type: 'ASSET' },
+    { code: '1101', name: 'حساب‌های دریافتنی', type: 'ASSET' },
+    { code: '1201', name: 'موجودی کالا', type: 'ASSET' },
+    { code: '2001', name: 'حساب‌های پرداختنی', type: 'LIABILITY' },
+    { code: '3001', name: 'سرمایه', type: 'EQUITY' },
+    { code: '4001', name: 'درآمد خدمات', type: 'INCOME' },
+    { code: '4002', name: 'درآمد فروش کالا', type: 'INCOME' },
+    { code: '4101', name: 'تخفیف فروش', type: 'INCOME' },
+    { code: '5001', name: 'اجاره', type: 'EXPENSE' },
+    { code: '5002', name: 'حقوق', type: 'EXPENSE' },
+    { code: '5003', name: 'سایر هزینه', type: 'EXPENSE' },
+    { code: '5004', name: 'بهای تمام‌شده کالای فروش‌رفته', type: 'EXPENSE' },
+  ]
+  for (const acc of chart) {
+    await db.ledgerAccount.upsert({ where: { code: acc.code }, update: { name: acc.name, type: acc.type }, create: acc })
+  }
 
   // ---------- شعب ----------
   const brMain = await db.branch.create({
@@ -719,6 +743,12 @@ async function main() {
     data: { username: 'reception', password: pass, fullName: 'سمیرا احمدی', role: 'RECEPTIONIST', phone: '09121110002', branchId: brMain.id },
   })
   await db.user.create({
+    data: { username: 'super', password: pass, fullName: 'مدیر پلتفرم', role: 'SUPER_ADMIN', phone: '09121110008' },
+  })
+  await db.user.create({
+    data: { username: 'admin', password: pass, fullName: 'مدیر کلینیک', role: 'ADMIN', phone: '09121110007', email: 'admin@labkhandmehr.ir', branchId: null },
+  })
+  await db.user.create({
     data: { username: 'reception2', password: pass, fullName: 'نگار مهدوی', role: 'RECEPTIONIST', phone: '09121110005', branchId: brValiasr.id },
   })
   await db.user.create({
@@ -736,7 +766,22 @@ async function main() {
   console.log(` done: ${apptCount} appointments, ${patients.length} patients, ${products.length} products, ${branches.length} branches, 5 users`)
 }
 
-main()
+
+async function run(): Promise<void> {
+  const clinic = await db.clinic.upsert({
+    where: { name: 'کلینیک دندان‌پزشکی لبخند مهر' },
+    update: {},
+    create: { name: 'کلینیک دندان‌پزشکی لبخند مهر', contactPhone: '۰۲۱-۲۲۳۳۴۴۵۵', isActive: true },
+  })
+
+  await withTenantContext(clinic.id, async () => {
+    await main()
+    await seedAll()
+  })
+  console.log('SEED DONE — clinic:', clinic.id)
+}
+
+run()
   .catch((e) => {
     console.error(e)
     process.exit(1)

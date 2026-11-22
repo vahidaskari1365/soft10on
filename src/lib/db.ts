@@ -125,6 +125,18 @@ const TENANT_SCOPED = new Set([
   'Document', 'AuditLog',
 ])
 
+/**
+ * مدل‌های Branch-owned — کاربران محدود به شعبه (ctx.branchId) فقط دادهٔ شعبهٔ خود را
+ * می‌بینند/می‌سازند. User مستثناست (branchId او «شعبهٔ خانه» است نه مالکیت داده) و
+ * PATIENT نیز مستثناست (رکوردهایش ممکن است در هر شعبه ثبت شده باشد).
+ */
+const BRANCH_SCOPED = new Set([
+  'Doctor', 'Appointment', 'Task', 'Product', 'Purchase', 'ProductSale', 'Expense',
+  'CashAccount', 'Invoice', 'Payment', 'Check', 'Payroll', 'Message',
+  'Waitlist', 'PublicBooking', 'RoomUnit', 'Holiday', 'MedicalRecord',
+  'JournalEntry', 'Document', 'AuditLog',
+])
+
 /** مدل‌های دارای patientId — برای نقش بیمار فقط رکوردهای خودش */
 const PATIENT_OWNED = new Set([
   'Appointment', 'Invoice', 'Payment', 'Check', 'MedicalRecord', 'ProductSale',
@@ -157,6 +169,20 @@ function injectClinicId(args: AnyArgs, clinicId: string) {
       throw new Error('TENANT_MISMATCH: clinicId با زمینهٔ سشن نمی‌خواند')
     }
     if (!('clinicId' in r)) r.clinicId = clinicId
+  }
+}
+
+/** تزریق branchId به دادهٔ create — کاربر محدود به شعبه فقط در شعبهٔ خودش ثبت می‌کند */
+function injectBranchId(args: AnyArgs, branchId: string) {
+  if (!('data' in args) || !args.data || typeof args.data !== 'object') return
+  const rows: unknown[] = Array.isArray(args.data) ? args.data : [args.data]
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    const r = row as AnyArgs
+    if ('branchId' in r && r.branchId !== null && r.branchId !== branchId) {
+      throw new Error('BRANCH_MISMATCH: branchId با شعبهٔ مجاز سشن نمی‌خواند')
+    }
+    if (!('branchId' in r)) r.branchId = branchId
   }
 }
 
@@ -196,8 +222,16 @@ function scopedDelegate(model: string, delegate: object): object {
         }
         const first = (callArgs[0] ?? {}) as AnyArgs
         if (ctx) {
-          if (m === 'create' || m === 'createMany') injectClinicId(first, ctx.clinicId)
-          else if (TENANT_SCOPED.has(model)) andWhere(first, { clinicId: ctx.clinicId })
+          if (m === 'create' || m === 'createMany') {
+            // فقط مدل‌های دارای ستون clinicId — User (NOT NULL) هم در create تزریق می‌شود
+            if (TENANT_SCOPED.has(model) || model === 'User') injectClinicId(first, ctx.clinicId)
+            // کاربر محدود به شعبه — بدون بیمار بودن — فقط در شعبهٔ خودش ثبت می‌کند
+            if (ctx.branchId && !ctx.patientId && BRANCH_SCOPED.has(model)) injectBranchId(first, ctx.branchId)
+          } else if (TENANT_SCOPED.has(model)) andWhere(first, { clinicId: ctx.clinicId })
+          // Doctor ستون clinicId ندارد — scope با رابطهٔ شعبه
+          else if (model === 'Doctor') andWhere(first, { branch: { clinicId: ctx.clinicId } })
+          // محدودسازی شعبه‌ای برای نقش‌های ستاد (بیمار مستثنا — scoping او patientId است)
+          if (ctx.branchId && !ctx.patientId && BRANCH_SCOPED.has(model)) andWhere(first, { branchId: ctx.branchId })
           if (ctx.role === 'PATIENT' && PATIENT_OWNED.has(model)) andWhere(first, { patientId: ctx.patientId })
           if (ctx.role === 'PATIENT' && model === 'Patient') andWhere(first, { id: ctx.patientId })
         }

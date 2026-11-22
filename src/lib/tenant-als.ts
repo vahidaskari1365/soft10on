@@ -9,9 +9,17 @@ export type TenantCtx = {
   clinicId: string
   userId: string
   role: string
-  branchId: string | null // شعبهٔ مجاز کاربر؛ null = همهٔ شعب کلینیک (مدیر)
+  branchId: string | null // شعبهٔ محدود کاربر؛ null = همهٔ شعب کلینیک (مدیر/حسابدار)
   patientId: string | null // برای نقش بیمار — محدودسازی به رکوردهای خودش
 }
+
+/**
+ * نقش‌های کلینیک‌گسترده — دادهٔ همهٔ شعب را می‌بینند:
+ * مدیر کلینیک، مدیر، حسابدار (مالی در سطح کلینیک). سایر نقش‌های ستاد
+ * (پزشک، پذیرش، انبار) به شعبهٔ خودشان محدود می‌شوند؛ بیمار مستثناست
+ * (رکوردهایش ممکن است در هر شعبه ثبت شده باشد — scoping او با patientId است).
+ */
+const CLINIC_WIDE_ROLES = new Set(['ADMIN', 'MANAGER', 'ACCOUNTANT'])
 
 const g = globalThis as unknown as { __tenonAls?: AsyncLocalStorage<TenantCtx> }
 // Singleton سراسری — جلوگیری از دوباره‌ساخت ماژول در باندل‌های جدا Turbopack
@@ -37,6 +45,7 @@ export function tenantCtxFromUser(u: {
   patientId: string | null
 }): TenantCtx | null {
   if (!u.clinicId) return null
+  const effectiveBranchId = CLINIC_WIDE_ROLES.has(u.role) ? null : u.branchId
   return {
     clinicId: u.clinicId,
     userId: u.id,
@@ -44,4 +53,9 @@ export function tenantCtxFromUser(u: {
     branchId: u.branchId,
     patientId: u.patientId,
   }
+}
+
+/** اجرای یک بلوک کامل (مثلاً seed) داخل زمینهٔ Tenant مشخص */
+export async function withTenantContext<T>(clinicId: string, fn: () => Promise<T>): Promise<T> {
+  return als.run({ clinicId, userId: 'seed', role: 'ADMIN', branchId: null, patientId: null }, fn)
 }

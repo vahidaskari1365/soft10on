@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 
 /**
@@ -17,6 +18,29 @@ export function validateApptTime(start: string): { ok: true; startMs: number } |
 export async function doctorHasConflict(doctorId: string, startMs: number, durationMin: number): Promise<boolean> {
   const endMs = startMs + Math.max(durationMin, 15) * 60_000
   const cands = await db.appointment.findMany({
+    where: {
+      doctorId,
+      status: { in: ['PENDING', 'CONFIRMED', 'DONE'] },
+      start: { gte: new Date(startMs - 4 * 3_600_000), lt: new Date(endMs + 4 * 3_600_000) },
+    },
+    include: { service: { select: { durationMin: true } } },
+  })
+  return cands.some((c) => {
+    const cs = c.start.getTime()
+    const ce = cs + Math.max(c.service.durationMin, 15) * 60_000
+    return startMs < ce && endMs > cs
+  })
+}
+
+/** نسخهٔ تراکنشی — داخل قفل ردیف پزشک اجرا می‌شود تا ثبت هم‌زمان تداخل نسازد */
+export async function doctorHasConflictTx(
+  tx: Prisma.TransactionClient,
+  doctorId: string,
+  startMs: number,
+  durationMin: number,
+): Promise<boolean> {
+  const endMs = startMs + Math.max(durationMin, 15) * 60_000
+  const cands = await tx.appointment.findMany({
     where: {
       doctorId,
       status: { in: ['PENDING', 'CONFIRMED', 'DONE'] },

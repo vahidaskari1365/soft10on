@@ -65,3 +65,4 @@ server.log
 !/scripts/*.py
 /agent-ctx/
 prisma/core
+.pgdata/

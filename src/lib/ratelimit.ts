@@ -26,7 +26,7 @@ export function clientIp(request: Request): string {
 /** پاکسازی دوره‌ای پنجره‌های منقضی — با احتمال کم تا هزینه هر درخواست ثابت بماند */
 function maybeCleanup(ws: number): void {
   if (Math.random() > 0.02) return
-  const cutoff = String(ws - 2)
+  const cutoff = ws - 2
   void db
     .$executeRaw(
       Prisma.sql`DELETE FROM "public"."SystemMeta" WHERE key LIKE 'rl:%' AND split_part(value, ':', 1)::bigint < ${cutoff}`,

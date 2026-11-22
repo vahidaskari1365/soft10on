@@ -25,7 +25,7 @@ async function login(u, p) {
 async function dbClient() {
   const fs = await import('node:fs')
   if (!process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = fs.readFileSync('.env.local', 'utf8').match(/^DATABASE_URL="?([^"\n]+)"?/m)[1].trim()
+    process.env.DATABASE_URL = fs.readFileSync(fs.existsSync('.env.local') ? '.env.local' : '.env', 'utf8').match(/^DATABASE_URL="?([^"\n]+)"?/m)[1].trim()
   }
   const { PrismaClient } = await import('@prisma/client')
   const db = new PrismaClient()
@@ -36,7 +36,7 @@ const { randomBytes, scryptSync } = await import('node:crypto')
 const stamp = randomBytes(4).toString('hex')
 
 // ---------- setup: دو کلینیک + کاربر + بیمار + فاکتور + صندوق + سند ----------
-const mCookie = await login('manager', '123456')
+const mCookie = await login('super', '123456')
 const db = await dbClient()
 const cA = await api('/api/clinics', { method: 'POST', cookie: mCookie, body: { name: `سکیور A-${stamp}` } })
 const cB = await api('/api/clinics', { method: 'POST', cookie: mCookie, body: { name: `سکیور B-${stamp}` } })

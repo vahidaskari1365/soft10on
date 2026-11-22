@@ -5,13 +5,23 @@
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
     "postinstall": "prisma generate",
-    "build": "next build && (cp -r .next/static .next/standalone/.next/ || true) && (cp -r public .next/standalone/ || true)",
+    "build": "next build",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
-    "lint": "eslint .",
+    "lint": "eslint src",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:migrate": "prisma migrate deploy",
+    "db:reset": "prisma migrate reset",
+    "test:unit": "bun scripts/unit-tests.ts",
+    "test:branch": "node scripts/branch-tests.mjs",
+    "test:integration": "node scripts/security-tests.mjs && node scripts/finance-tests.mjs",
+    "test:security": "node scripts/security-tests.mjs && node scripts/auth-security-tests.mjs",
+    "test:finance": "node scripts/finance-tests.mjs",
+    "test:e2e": "node scripts/login-cards-smoke.mjs",
+    "test:all": "bun scripts/unit-tests.ts && node scripts/branch-tests.mjs && node scripts/security-tests.mjs && node scripts/finance-tests.mjs && node scripts/auth-security-tests.mjs && node scripts/login-cards-smoke.mjs",
+    "typecheck": "tsc --noEmit",
+    "db:test:up": "bun scripts/local-pg.mjs",
+    "db:seed": "bun prisma/seed.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -86,10 +96,18 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "bun-types": "^1.3.4",
+    "embedded-postgres": "^18.7.0-beta.19",
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"
-  }
+  },
+  "trustedDependencies": [
+    "@embedded-postgres/linux-x64",
+    "@parcel/watcher",
+    "@swc/core",
+    "es5-ext",
+    "unrs-resolver"
+  ]
 }

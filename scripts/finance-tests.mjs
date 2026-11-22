@@ -38,13 +38,13 @@ const stamp = randomBytes(4).toString('hex')
 {
   const fs = await import('node:fs')
   if (!process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = fs.readFileSync('.env.local', 'utf8').match(/^DATABASE_URL="?([^"\n]+)"?/m)[1].trim()
+    process.env.DATABASE_URL = fs.readFileSync(fs.existsSync('.env.local') ? '.env.local' : '.env', 'utf8').match(/^DATABASE_URL="?([^"\n]+)"?/m)[1].trim()
   }
 }
 
 // ---------- راه‌اندازی: دو کلینیک + کاربر + کالا + بیمار + فاکتور ----------
 async function setup() {
-  const mCookie = await login('manager', '123456')
+  const mCookie = await login('super', '123456')
   const cA = await api('/api/clinics', { method: 'POST', cookie: mCookie, body: { name: `مالی A-${stamp}` } })
   const cB = await api('/api/clinics', { method: 'POST', cookie: mCookie, body: { name: `مالی B-${stamp}` } })
   const { PrismaClient } = await import('@prisma/client')

@@ -32,7 +32,7 @@ export async function GET() {
       orderBy: { start: 'desc' },
     }),
     db.task.findMany({ where: { assigneeRole: 'DOCTOR', status: { in: ['OPEN', 'IN_PROGRESS', 'BLOCKED'] } }, orderBy: { dueAt: 'asc' }, take: 6 }),
-    db.doctor.findUnique({ where: { id: doctorId }, include: { branch: true } }),
+    db.doctor.findFirst({ where: { id: doctorId }, include: { branch: true } }),
   ])
 
   // سری ۱۲ ماه کارانه

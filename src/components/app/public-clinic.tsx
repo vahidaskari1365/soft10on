@@ -27,14 +27,18 @@ export function PublicClinic({ branchCode }: { branchCode?: string }) {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/branches').then((r) => r.json()).then((d) => {
+    fetch(`/api/branches?code=${encodeURIComponent(branchCode ?? '')}`).then((r) => r.json()).then((d) => {
       const list = (d.branches ?? []) as BranchPublic[]
       setBranches(list)
       const initial = branchCode ? list.find((b) => b.code === branchCode) : list[0]
       setSelected(initial?.id ?? '')
     }).catch(() => {})
-    fetch('/api/meta').then((r) => r.json()).then((d) => setServices((d.services ?? []) as ServicePublic[])).catch(() => {})
   }, [branchCode])
+  useEffect(() => {
+    // خدمات و پزشکان عمومی فقط برای شعبهٔ انتخابی — بدون افشای سایر کلینیک‌ها
+    if (!selected) return
+    fetch(`/api/meta?branchId=${encodeURIComponent(selected)}`).then((r) => r.json()).then((d) => setServices((d.services ?? []) as ServicePublic[])).catch(() => {})
+  }, [selected])
 
   const branch = branches.find((b) => b.id === selected)
 

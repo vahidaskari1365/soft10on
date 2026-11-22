@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
-import { validateApptTime, doctorHasConflict } from '@/lib/scheduling'
+import { validateApptTime, doctorHasConflict, doctorHasConflictTx } from '@/lib/scheduling'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
 
@@ -60,10 +60,11 @@ export const POST = tenantHandler()(async (session, request) => {
     }
   }
   if (!pid) return NextResponse.json({ error: 'بیمار مشخص نیست' }, { status: 400 })
-  const patientRec = await db.patient.findUnique({ where: { id: pid }, select: { id: true } })
+  // findFirst با scope خودکار — بیمار کلینیک دیگر قابل ارجاع نیست
+  const patientRec = await db.patient.findFirst({ where: { id: pid }, select: { id: true } })
   if (!patientRec) return NextResponse.json({ error: 'بیمار یافت نشد' }, { status: 404 })
 
-  const service = await db.service.findUnique({ where: { id: serviceId } })
+  const service = await db.service.findFirst({ where: { id: serviceId } })
   if (!service) return NextResponse.json({ error: 'خدمت یافت نشد' }, { status: 400 })
 
   // ————— اعتبارسنجی زمان + کنترل تداخل نوبت پزشک —————
@@ -76,7 +77,8 @@ export const POST = tenantHandler()(async (session, request) => {
   const startDt = new Date(startMs)
 
   // ————— بررسی برنامه کاری شعبه و تعطیلات —————
-  const doctorRec = await db.doctor.findUnique({ where: { id: doctorId }, include: { branch: true } })
+  // findFirst با scope رابطه‌ای شعبه→کلینیک — پزشک کلینیک دیگر قابل ارجاع نیست
+  const doctorRec = await db.doctor.findFirst({ where: { id: doctorId }, include: { branch: true } })
   const branchRec = doctorRec?.branch
   if (branchRec) {
     const isFri = startDt.getUTCDay() === 5
@@ -122,27 +124,55 @@ export const POST = tenantHandler()(async (session, request) => {
   const deposit = Math.max(0, Math.round(Number(bodyTyped.deposit ?? 0) || 0))
   if (!Number.isFinite(deposit) || deposit < 0) return NextResponse.json({ error: 'مبلغ بیعانه نامعتبر است' }, { status: 400 })
 
-  const doctor = await db.doctor.findUnique({ where: { id: doctorId } })
+  const doctor = await db.doctor.findFirst({ where: { id: doctorId } })
   if (!doctor) return NextResponse.json({ error: 'پزشک یافت نشد' }, { status: 400 })
 
-  const appt = await db.appointment.create({
-    data: {
-      branchId: doctor.branchId,
-      patientId: pid,
-      doctorId,
-      serviceId,
-      start: new Date(startMs),
-      status: 'PENDING',
-      source: source ?? 'PANEL',
-      price: service.price,
-      deposit,
-      note: note ?? null,
-      reason: bodyTyped.reason?.trim() || null,
-      roomUnitId,
-      reminderSent: 'PENDING',
-    },
-    include: { patient: true, doctor: true, service: true, roomUnit: true },
-  })
+  // ————— ثبت اتمیک: قفل ردیف پزشک (+ اتاق) → بازبینی تداخل داخل قفل → ثبت
+  // دو درخواست هم‌زمان برای یک زمان فقط یکی موفق می‌شود؛ بررسی قبل از Insert کافی نیست
+  const durationMin = Math.max(service.durationMin, 15)
+  const endMs = startMs + durationMin * 60_000
+  const appt = await db
+    .$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Doctor" WHERE id = ${doctorId} FOR UPDATE`
+      if (roomUnitId) await tx.$queryRaw`SELECT id FROM "RoomUnit" WHERE id = ${roomUnitId} FOR UPDATE`
+      if (await doctorHasConflictTx(tx, doctorId, startMs, durationMin)) throw new Error('SLOT_TAKEN')
+      if (roomUnitId) {
+        const roomCands = await tx.appointment.findMany({
+          where: { roomUnitId, status: { in: ['REQUESTED', 'PENDING', 'CONFIRMED', 'ARRIVED', 'IN_VISIT', 'DONE'] }, start: { gte: new Date(startMs - 4 * 3_600_000), lt: new Date(endMs + 4 * 3_600_000) } },
+          include: { service: { select: { durationMin: true } } },
+        })
+        const roomOverlap = roomCands.some((c) => {
+          const cs = c.start.getTime()
+          const ce = cs + Math.max(c.service.durationMin, 15) * 60_000
+          return startMs < ce && endMs > cs
+        })
+        if (roomOverlap) throw new Error('ROOM_TAKEN')
+      }
+      return tx.appointment.create({
+        data: {
+          clinicId: session.clinicId,
+          branchId: doctor.branchId,
+          patientId: pid,
+          doctorId,
+          serviceId,
+          start: new Date(startMs),
+          status: 'PENDING',
+          source: source ?? 'PANEL',
+          price: service.price,
+          deposit,
+          note: note ?? null,
+          reason: bodyTyped.reason?.trim() || null,
+          roomUnitId,
+          reminderSent: 'PENDING',
+        },
+        include: { patient: true, doctor: true, service: true, roomUnit: true },
+      })
+    })
+    .catch((e: unknown) => {
+      if (e instanceof Error && (e.message === 'SLOT_TAKEN' || e.message === 'ROOM_TAKEN')) return null
+      throw e
+    })
+  if (!appt) return NextResponse.json({ error: 'تداخل زمانی: این بازه هم‌اکنون رزرو شد' }, { status: 409 })
 
   await db.appointmentHistory.create({
     data: { appointmentId: appt.id, action: 'CREATE', newStart: appt.start, newStatus: appt.status, changedByName: session.fullName },

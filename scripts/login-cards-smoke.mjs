@@ -16,7 +16,9 @@ for (const label of accounts) {
     // ورود موفق = صفحه لاگین محو می‌شود
     await page.locator('h2:has-text("ورود به سامانه 10on")').waitFor({ state: 'detached', timeout: 45000 })
     await page.waitForTimeout(1500)
-    const err = await page.locator('.bg-red-50').count()
+    // فقط پیام خطای واقعی — هشدارهای قرمز داشبورد (مثل «کار عقب‌افتاده») خطا نیستند
+    const errTexts = await page.locator('.bg-red-50').allInnerTexts()
+    const err = errTexts.filter((t) => /خطا|مجاز نیست|شکست|نامعتبر|اشتباه/.test(t)).length
     const body = (await page.locator('body').innerText()).slice(0, 110).replace(/\s+/g, ' ')
     results.push({ label, ok: err === 0, sample: body })
   } catch (e) {

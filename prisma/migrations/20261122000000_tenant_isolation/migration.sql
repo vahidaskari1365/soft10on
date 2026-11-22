@@ -1,241 +1,323 @@
--- tenant isolation: clinicId + FK + index + composite uniques + tokenVersion + idempotency
-ALTER TABLE "Appointment" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Purchase" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "ProductSale" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Expense" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "CashAccount" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Payment" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Check" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Payroll" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Waitlist" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "PublicBooking" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "RoomUnit" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Holiday" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "MedicalRecord" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "JournalEntry" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Prescription" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "TreatmentPlan" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "EmergencyContact" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "TimelineEvent" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "AppointmentHistory" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Service" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-ALTER TABLE "LedgerAccount" ADD COLUMN IF NOT EXISTS "clinicId" TEXT;
-UPDATE "Appointment" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Task" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Product" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Purchase" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "ProductSale" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Expense" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "CashAccount" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Invoice" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Payment" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Check" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Payroll" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Message" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Waitlist" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "PublicBooking" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "RoomUnit" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Holiday" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "MedicalRecord" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "JournalEntry" t SET "clinicId" = b."clinicId" FROM "Branch" b WHERE t."branchId" = b."id" AND t."clinicId" IS NULL;
-UPDATE "Prescription" t SET "clinicId" = p."clinicId" FROM "Patient" p WHERE t."patientId" = p."id" AND t."clinicId" IS NULL;
-UPDATE "TreatmentPlan" t SET "clinicId" = p."clinicId" FROM "Patient" p WHERE t."patientId" = p."id" AND t."clinicId" IS NULL;
-UPDATE "EmergencyContact" t SET "clinicId" = p."clinicId" FROM "Patient" p WHERE t."patientId" = p."id" AND t."clinicId" IS NULL;
-UPDATE "TimelineEvent" t SET "clinicId" = p."clinicId" FROM "Patient" p WHERE t."patientId" = p."id" AND t."clinicId" IS NULL;
-UPDATE "AppointmentHistory" t SET "clinicId" = p."clinicId" FROM "Patient" p WHERE t."patientId" = p."id" AND t."clinicId" IS NULL;
-UPDATE "Service" SET "clinicId" = (SELECT "id" FROM "Clinic" LIMIT 1) WHERE "clinicId" IS NULL AND (SELECT COUNT(*) FROM "Clinic") = 1;
-UPDATE "Supplier" SET "clinicId" = (SELECT "id" FROM "Clinic" LIMIT 1) WHERE "clinicId" IS NULL AND (SELECT COUNT(*) FROM "Clinic") = 1;
-UPDATE "LedgerAccount" SET "clinicId" = (SELECT "id" FROM "Clinic" LIMIT 1) WHERE "clinicId" IS NULL AND (SELECT COUNT(*) FROM "Clinic") = 1;
-ALTER TABLE "Appointment" DROP CONSTRAINT IF EXISTS "fk_Appointment_clinic";
-ALTER TABLE "Appointment" ADD CONSTRAINT "fk_Appointment_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Appointment_clinic" ON "Appointment"("clinicId");
-ALTER TABLE "Task" DROP CONSTRAINT IF EXISTS "fk_Task_clinic";
-ALTER TABLE "Task" ADD CONSTRAINT "fk_Task_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Task_clinic" ON "Task"("clinicId");
-ALTER TABLE "Product" DROP CONSTRAINT IF EXISTS "fk_Product_clinic";
-ALTER TABLE "Product" ADD CONSTRAINT "fk_Product_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Product_clinic" ON "Product"("clinicId");
-ALTER TABLE "Purchase" DROP CONSTRAINT IF EXISTS "fk_Purchase_clinic";
-ALTER TABLE "Purchase" ADD CONSTRAINT "fk_Purchase_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Purchase_clinic" ON "Purchase"("clinicId");
-ALTER TABLE "ProductSale" DROP CONSTRAINT IF EXISTS "fk_ProductSale_clinic";
-ALTER TABLE "ProductSale" ADD CONSTRAINT "fk_ProductSale_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_ProductSale_clinic" ON "ProductSale"("clinicId");
-ALTER TABLE "Expense" DROP CONSTRAINT IF EXISTS "fk_Expense_clinic";
-ALTER TABLE "Expense" ADD CONSTRAINT "fk_Expense_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Expense_clinic" ON "Expense"("clinicId");
-ALTER TABLE "CashAccount" DROP CONSTRAINT IF EXISTS "fk_CashAccount_clinic";
-ALTER TABLE "CashAccount" ADD CONSTRAINT "fk_CashAccount_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_CashAccount_clinic" ON "CashAccount"("clinicId");
-ALTER TABLE "Invoice" DROP CONSTRAINT IF EXISTS "fk_Invoice_clinic";
-ALTER TABLE "Invoice" ADD CONSTRAINT "fk_Invoice_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Invoice_clinic" ON "Invoice"("clinicId");
-ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "fk_Payment_clinic";
-ALTER TABLE "Payment" ADD CONSTRAINT "fk_Payment_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Payment_clinic" ON "Payment"("clinicId");
-ALTER TABLE "Check" DROP CONSTRAINT IF EXISTS "fk_Check_clinic";
-ALTER TABLE "Check" ADD CONSTRAINT "fk_Check_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Check_clinic" ON "Check"("clinicId");
-ALTER TABLE "Payroll" DROP CONSTRAINT IF EXISTS "fk_Payroll_clinic";
-ALTER TABLE "Payroll" ADD CONSTRAINT "fk_Payroll_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Payroll_clinic" ON "Payroll"("clinicId");
-ALTER TABLE "Message" DROP CONSTRAINT IF EXISTS "fk_Message_clinic";
-ALTER TABLE "Message" ADD CONSTRAINT "fk_Message_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Message_clinic" ON "Message"("clinicId");
-ALTER TABLE "Waitlist" DROP CONSTRAINT IF EXISTS "fk_Waitlist_clinic";
-ALTER TABLE "Waitlist" ADD CONSTRAINT "fk_Waitlist_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Waitlist_clinic" ON "Waitlist"("clinicId");
-ALTER TABLE "PublicBooking" DROP CONSTRAINT IF EXISTS "fk_PublicBooking_clinic";
-ALTER TABLE "PublicBooking" ADD CONSTRAINT "fk_PublicBooking_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_PublicBooking_clinic" ON "PublicBooking"("clinicId");
-ALTER TABLE "RoomUnit" DROP CONSTRAINT IF EXISTS "fk_RoomUnit_clinic";
-ALTER TABLE "RoomUnit" ADD CONSTRAINT "fk_RoomUnit_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_RoomUnit_clinic" ON "RoomUnit"("clinicId");
-ALTER TABLE "Holiday" DROP CONSTRAINT IF EXISTS "fk_Holiday_clinic";
-ALTER TABLE "Holiday" ADD CONSTRAINT "fk_Holiday_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Holiday_clinic" ON "Holiday"("clinicId");
-ALTER TABLE "MedicalRecord" DROP CONSTRAINT IF EXISTS "fk_MedicalRecord_clinic";
-ALTER TABLE "MedicalRecord" ADD CONSTRAINT "fk_MedicalRecord_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_MedicalRecord_clinic" ON "MedicalRecord"("clinicId");
-ALTER TABLE "JournalEntry" DROP CONSTRAINT IF EXISTS "fk_JournalEntry_clinic";
-ALTER TABLE "JournalEntry" ADD CONSTRAINT "fk_JournalEntry_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_JournalEntry_clinic" ON "JournalEntry"("clinicId");
-ALTER TABLE "Prescription" DROP CONSTRAINT IF EXISTS "fk_Prescription_clinic";
-ALTER TABLE "Prescription" ADD CONSTRAINT "fk_Prescription_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Prescription_clinic" ON "Prescription"("clinicId");
-ALTER TABLE "TreatmentPlan" DROP CONSTRAINT IF EXISTS "fk_TreatmentPlan_clinic";
-ALTER TABLE "TreatmentPlan" ADD CONSTRAINT "fk_TreatmentPlan_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_TreatmentPlan_clinic" ON "TreatmentPlan"("clinicId");
-ALTER TABLE "EmergencyContact" DROP CONSTRAINT IF EXISTS "fk_EmergencyContact_clinic";
-ALTER TABLE "EmergencyContact" ADD CONSTRAINT "fk_EmergencyContact_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_EmergencyContact_clinic" ON "EmergencyContact"("clinicId");
-ALTER TABLE "TimelineEvent" DROP CONSTRAINT IF EXISTS "fk_TimelineEvent_clinic";
-ALTER TABLE "TimelineEvent" ADD CONSTRAINT "fk_TimelineEvent_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_TimelineEvent_clinic" ON "TimelineEvent"("clinicId");
-ALTER TABLE "AppointmentHistory" DROP CONSTRAINT IF EXISTS "fk_AppointmentHistory_clinic";
-ALTER TABLE "AppointmentHistory" ADD CONSTRAINT "fk_AppointmentHistory_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_AppointmentHistory_clinic" ON "AppointmentHistory"("clinicId");
-ALTER TABLE "Service" DROP CONSTRAINT IF EXISTS "fk_Service_clinic";
-ALTER TABLE "Service" ADD CONSTRAINT "fk_Service_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Service_clinic" ON "Service"("clinicId");
-ALTER TABLE "Supplier" DROP CONSTRAINT IF EXISTS "fk_Supplier_clinic";
-ALTER TABLE "Supplier" ADD CONSTRAINT "fk_Supplier_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_Supplier_clinic" ON "Supplier"("clinicId");
-ALTER TABLE "LedgerAccount" DROP CONSTRAINT IF EXISTS "fk_LedgerAccount_clinic";
-ALTER TABLE "LedgerAccount" ADD CONSTRAINT "fk_LedgerAccount_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE INDEX IF NOT EXISTS "idx_LedgerAccount_clinic" ON "LedgerAccount"("clinicId");
-ALTER TABLE "Invoice" DROP CONSTRAINT IF EXISTS "Invoice_number_key";
-ALTER TABLE "Invoice" DROP CONSTRAINT IF EXISTS "Invoice_clinicId_number_key";
-ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_clinicId_number_key" UNIQUE ("clinicId", "number");
-ALTER TABLE "JournalEntry" DROP CONSTRAINT IF EXISTS "JournalEntry_number_key";
-ALTER TABLE "JournalEntry" DROP CONSTRAINT IF EXISTS "JournalEntry_clinicId_number_key";
-ALTER TABLE "JournalEntry" ADD CONSTRAINT "JournalEntry_clinicId_number_key" UNIQUE ("clinicId", "number");
-ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "tokenVersion" INTEGER NOT NULL DEFAULT 1;
-ALTER TABLE "Payment" ADD COLUMN IF NOT EXISTS "idempotencyKey" TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS "Payment_idempotencyKey_key" ON "Payment"("idempotencyKey") WHERE "idempotencyKey" IS NOT NULL;
+-- ============================================================
+-- Tenant Isolation — DB-level hardening (phase 5)
+-- روی schema.prisma (baseline 0_init) اعمال می‌شود:
+--  ۱) clinicId در DB واقعاً NOT NULL می‌شود (در schema برای سازگاری TS اختیاری می‌ماند)
+--  ۲) FK های clinicId → Clinic با ON DELETE RESTRICT (حذف کلینیک، یتیم‌سازی مالی/پزشکی ممنوع)
+--  ۳) guardهای idempotent — اجرای مجدد بی‌اثر است
+-- (backfillهای یک‌بارهٔ prod پیش‌تر خارج از migration اجرا و مستند شده‌اند)
+-- ============================================================
 
--- orphan standalone unique indexes (left by DROP CONSTRAINT) + payroll composite
-DROP INDEX IF EXISTS "Invoice_number_key";
-DROP INDEX IF EXISTS "JournalEntry_number_key";
-ALTER TABLE "Payroll" DROP CONSTRAINT IF EXISTS "Payroll_month_staffName_key";
-DROP INDEX IF EXISTS "Payroll_month_staffName_key";
-ALTER TABLE "Payroll" DROP CONSTRAINT IF EXISTS "Payroll_clinicId_month_staffName_key";
-ALTER TABLE "Payroll" ADD CONSTRAINT "Payroll_clinicId_month_staffName_key" UNIQUE ("clinicId", month, "staffName");
+DO $$ BEGIN
+  ALTER TABLE "Patient" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Patient" DROP CONSTRAINT IF EXISTS "fk_Patient_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Patient_clinic') THEN
+    ALTER TABLE "Patient" ADD CONSTRAINT "fk_Patient_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Appointment" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Appointment" DROP CONSTRAINT IF EXISTS "fk_Appointment_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Appointment_clinic') THEN
+    ALTER TABLE "Appointment" ADD CONSTRAINT "fk_Appointment_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Task" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Task" DROP CONSTRAINT IF EXISTS "fk_Task_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Task_clinic') THEN
+    ALTER TABLE "Task" ADD CONSTRAINT "fk_Task_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Product" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Product" DROP CONSTRAINT IF EXISTS "fk_Product_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Product_clinic') THEN
+    ALTER TABLE "Product" ADD CONSTRAINT "fk_Product_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Purchase" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Purchase" DROP CONSTRAINT IF EXISTS "fk_Purchase_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Purchase_clinic') THEN
+    ALTER TABLE "Purchase" ADD CONSTRAINT "fk_Purchase_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "ProductSale" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "ProductSale" DROP CONSTRAINT IF EXISTS "fk_ProductSale_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_ProductSale_clinic') THEN
+    ALTER TABLE "ProductSale" ADD CONSTRAINT "fk_ProductSale_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Expense" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Expense" DROP CONSTRAINT IF EXISTS "fk_Expense_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Expense_clinic') THEN
+    ALTER TABLE "Expense" ADD CONSTRAINT "fk_Expense_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "CashAccount" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CashAccount" DROP CONSTRAINT IF EXISTS "fk_CashAccount_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_CashAccount_clinic') THEN
+    ALTER TABLE "CashAccount" ADD CONSTRAINT "fk_CashAccount_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Invoice" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Invoice" DROP CONSTRAINT IF EXISTS "fk_Invoice_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Invoice_clinic') THEN
+    ALTER TABLE "Invoice" ADD CONSTRAINT "fk_Invoice_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Payment" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "fk_Payment_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Payment_clinic') THEN
+    ALTER TABLE "Payment" ADD CONSTRAINT "fk_Payment_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Check" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Check" DROP CONSTRAINT IF EXISTS "fk_Check_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Check_clinic') THEN
+    ALTER TABLE "Check" ADD CONSTRAINT "fk_Check_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Payroll" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Payroll" DROP CONSTRAINT IF EXISTS "fk_Payroll_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Payroll_clinic') THEN
+    ALTER TABLE "Payroll" ADD CONSTRAINT "fk_Payroll_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Message" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Message" DROP CONSTRAINT IF EXISTS "fk_Message_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Message_clinic') THEN
+    ALTER TABLE "Message" ADD CONSTRAINT "fk_Message_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Waitlist" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Waitlist" DROP CONSTRAINT IF EXISTS "fk_Waitlist_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Waitlist_clinic') THEN
+    ALTER TABLE "Waitlist" ADD CONSTRAINT "fk_Waitlist_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "PublicBooking" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "PublicBooking" DROP CONSTRAINT IF EXISTS "fk_PublicBooking_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_PublicBooking_clinic') THEN
+    ALTER TABLE "PublicBooking" ADD CONSTRAINT "fk_PublicBooking_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "RoomUnit" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "RoomUnit" DROP CONSTRAINT IF EXISTS "fk_RoomUnit_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_RoomUnit_clinic') THEN
+    ALTER TABLE "RoomUnit" ADD CONSTRAINT "fk_RoomUnit_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Holiday" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Holiday" DROP CONSTRAINT IF EXISTS "fk_Holiday_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Holiday_clinic') THEN
+    ALTER TABLE "Holiday" ADD CONSTRAINT "fk_Holiday_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "MedicalRecord" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "MedicalRecord" DROP CONSTRAINT IF EXISTS "fk_MedicalRecord_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_MedicalRecord_clinic') THEN
+    ALTER TABLE "MedicalRecord" ADD CONSTRAINT "fk_MedicalRecord_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "JournalEntry" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "JournalEntry" DROP CONSTRAINT IF EXISTS "fk_JournalEntry_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_JournalEntry_clinic') THEN
+    ALTER TABLE "JournalEntry" ADD CONSTRAINT "fk_JournalEntry_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Prescription" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Prescription" DROP CONSTRAINT IF EXISTS "fk_Prescription_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Prescription_clinic') THEN
+    ALTER TABLE "Prescription" ADD CONSTRAINT "fk_Prescription_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "TreatmentPlan" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "TreatmentPlan" DROP CONSTRAINT IF EXISTS "fk_TreatmentPlan_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_TreatmentPlan_clinic') THEN
+    ALTER TABLE "TreatmentPlan" ADD CONSTRAINT "fk_TreatmentPlan_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "EmergencyContact" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "EmergencyContact" DROP CONSTRAINT IF EXISTS "fk_EmergencyContact_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_EmergencyContact_clinic') THEN
+    ALTER TABLE "EmergencyContact" ADD CONSTRAINT "fk_EmergencyContact_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "TimelineEvent" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "TimelineEvent" DROP CONSTRAINT IF EXISTS "fk_TimelineEvent_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_TimelineEvent_clinic') THEN
+    ALTER TABLE "TimelineEvent" ADD CONSTRAINT "fk_TimelineEvent_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "AppointmentHistory" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "AppointmentHistory" DROP CONSTRAINT IF EXISTS "fk_AppointmentHistory_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_AppointmentHistory_clinic') THEN
+    ALTER TABLE "AppointmentHistory" ADD CONSTRAINT "fk_AppointmentHistory_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Service" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Service" DROP CONSTRAINT IF EXISTS "fk_Service_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Service_clinic') THEN
+    ALTER TABLE "Service" ADD CONSTRAINT "fk_Service_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Supplier" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Supplier" DROP CONSTRAINT IF EXISTS "fk_Supplier_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Supplier_clinic') THEN
+    ALTER TABLE "Supplier" ADD CONSTRAINT "fk_Supplier_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Branch" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Branch" DROP CONSTRAINT IF EXISTS "fk_Branch_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Branch_clinic') THEN
+    ALTER TABLE "Branch" ADD CONSTRAINT "fk_Branch_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "Document" ALTER COLUMN "clinicId" SET NOT NULL;
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "Document" DROP CONSTRAINT IF EXISTS "fk_Document_clinic";
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_Document_clinic') THEN
+    ALTER TABLE "Document" ADD CONSTRAINT "fk_Document_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
--- idempotency per-clinic: fingerprint + composite unique
-ALTER TABLE "Payment" ADD COLUMN IF NOT EXISTS "idempotencyFingerprint" TEXT;
+-- legacy cleanup: unique global idempotencyKey حذف (جایگزین: مرکب per-clinic در baseline)
+DO $$ BEGIN
+  ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_idempotencyKey_key";
+END $$;
 DROP INDEX IF EXISTS "Payment_idempotencyKey_key";
-ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_idempotencyKey_key";
-ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_clinicId_idempotencyKey_key";
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_clinicId_idempotencyKey_key" UNIQUE ("clinicId", "idempotencyKey");
-
--- Phase 5: NOT NULL tenant ownership + RESTRICT clinic FKs
-ALTER TABLE "Patient" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Patient" DROP CONSTRAINT IF EXISTS "fk_Patient_clinic";
-ALTER TABLE "Patient" ADD CONSTRAINT "fk_Patient_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Appointment" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Appointment" DROP CONSTRAINT IF EXISTS "fk_Appointment_clinic";
-ALTER TABLE "Appointment" ADD CONSTRAINT "fk_Appointment_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Task" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Task" DROP CONSTRAINT IF EXISTS "fk_Task_clinic";
-ALTER TABLE "Task" ADD CONSTRAINT "fk_Task_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Product" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Product" DROP CONSTRAINT IF EXISTS "fk_Product_clinic";
-ALTER TABLE "Product" ADD CONSTRAINT "fk_Product_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Purchase" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Purchase" DROP CONSTRAINT IF EXISTS "fk_Purchase_clinic";
-ALTER TABLE "Purchase" ADD CONSTRAINT "fk_Purchase_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "ProductSale" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "ProductSale" DROP CONSTRAINT IF EXISTS "fk_ProductSale_clinic";
-ALTER TABLE "ProductSale" ADD CONSTRAINT "fk_ProductSale_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Expense" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Expense" DROP CONSTRAINT IF EXISTS "fk_Expense_clinic";
-ALTER TABLE "Expense" ADD CONSTRAINT "fk_Expense_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "CashAccount" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "CashAccount" DROP CONSTRAINT IF EXISTS "fk_CashAccount_clinic";
-ALTER TABLE "CashAccount" ADD CONSTRAINT "fk_CashAccount_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Invoice" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Invoice" DROP CONSTRAINT IF EXISTS "fk_Invoice_clinic";
-ALTER TABLE "Invoice" ADD CONSTRAINT "fk_Invoice_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Payment" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "fk_Payment_clinic";
-ALTER TABLE "Payment" ADD CONSTRAINT "fk_Payment_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Check" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Check" DROP CONSTRAINT IF EXISTS "fk_Check_clinic";
-ALTER TABLE "Check" ADD CONSTRAINT "fk_Check_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Payroll" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Payroll" DROP CONSTRAINT IF EXISTS "fk_Payroll_clinic";
-ALTER TABLE "Payroll" ADD CONSTRAINT "fk_Payroll_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Message" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Message" DROP CONSTRAINT IF EXISTS "fk_Message_clinic";
-ALTER TABLE "Message" ADD CONSTRAINT "fk_Message_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Waitlist" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Waitlist" DROP CONSTRAINT IF EXISTS "fk_Waitlist_clinic";
-ALTER TABLE "Waitlist" ADD CONSTRAINT "fk_Waitlist_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "PublicBooking" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "PublicBooking" DROP CONSTRAINT IF EXISTS "fk_PublicBooking_clinic";
-ALTER TABLE "PublicBooking" ADD CONSTRAINT "fk_PublicBooking_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "RoomUnit" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "RoomUnit" DROP CONSTRAINT IF EXISTS "fk_RoomUnit_clinic";
-ALTER TABLE "RoomUnit" ADD CONSTRAINT "fk_RoomUnit_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Holiday" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Holiday" DROP CONSTRAINT IF EXISTS "fk_Holiday_clinic";
-ALTER TABLE "Holiday" ADD CONSTRAINT "fk_Holiday_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "MedicalRecord" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "MedicalRecord" DROP CONSTRAINT IF EXISTS "fk_MedicalRecord_clinic";
-ALTER TABLE "MedicalRecord" ADD CONSTRAINT "fk_MedicalRecord_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "JournalEntry" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "JournalEntry" DROP CONSTRAINT IF EXISTS "fk_JournalEntry_clinic";
-ALTER TABLE "JournalEntry" ADD CONSTRAINT "fk_JournalEntry_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Prescription" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Prescription" DROP CONSTRAINT IF EXISTS "fk_Prescription_clinic";
-ALTER TABLE "Prescription" ADD CONSTRAINT "fk_Prescription_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "TreatmentPlan" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "TreatmentPlan" DROP CONSTRAINT IF EXISTS "fk_TreatmentPlan_clinic";
-ALTER TABLE "TreatmentPlan" ADD CONSTRAINT "fk_TreatmentPlan_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "EmergencyContact" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "EmergencyContact" DROP CONSTRAINT IF EXISTS "fk_EmergencyContact_clinic";
-ALTER TABLE "EmergencyContact" ADD CONSTRAINT "fk_EmergencyContact_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "TimelineEvent" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "TimelineEvent" DROP CONSTRAINT IF EXISTS "fk_TimelineEvent_clinic";
-ALTER TABLE "TimelineEvent" ADD CONSTRAINT "fk_TimelineEvent_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "AppointmentHistory" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "AppointmentHistory" DROP CONSTRAINT IF EXISTS "fk_AppointmentHistory_clinic";
-ALTER TABLE "AppointmentHistory" ADD CONSTRAINT "fk_AppointmentHistory_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Service" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Service" DROP CONSTRAINT IF EXISTS "fk_Service_clinic";
-ALTER TABLE "Service" ADD CONSTRAINT "fk_Service_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Supplier" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Supplier" DROP CONSTRAINT IF EXISTS "fk_Supplier_clinic";
-ALTER TABLE "Supplier" ADD CONSTRAINT "fk_Supplier_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Branch" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Branch" DROP CONSTRAINT IF EXISTS "fk_Branch_clinic";
-ALTER TABLE "Branch" ADD CONSTRAINT "fk_Branch_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Document" ALTER COLUMN "clinicId" SET NOT NULL;
-ALTER TABLE "Document" DROP CONSTRAINT IF EXISTS "fk_Document_clinic";
-ALTER TABLE "Document" ADD CONSTRAINT "fk_Document_clinic" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

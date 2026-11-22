@@ -2,11 +2,27 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { revokeAllSessions } from '@/lib/auth'
 import { tenantHandler } from '@/lib/tenant'
+import { enterTenant, tenantCtxFromUser } from '@/lib/tenant-als'
+import { getSessionUser } from '@/lib/auth'
 import { jMonthKey, monthKeyStart, monthKeyEnd } from '@/lib/jalali'
 import { formatToman } from '@/lib/format'
 
-/** لیست شعب + آمار ماه جاری هر شعبه */
-export const GET = tenantHandler()(async (session, _request) => {
+/** لیست شعب + آمار ماه جاری هر شعبه — برای صفحات عمومی فقط با کد شعبه و دادهٔ حداقلی */
+export async function GET(request: Request) {
+  const publicCode = new URL(request.url).searchParams.get('code') ?? ''
+  const session = await getSessionUser()
+  // ————— مسیر عمومی: فقط شعبهٔ درخواستی با فیلدهای عمومی (بدون پرسنل و آمار مالی)
+  if (!session) {
+    if (!publicCode) return NextResponse.json({ branches: [] })
+    const b = await db.branch.findFirst({
+      where: { code: publicCode, isActive: true },
+      select: { id: true, code: true, name: true, city: true, address: true, phone: true, openHour: true, closeHour: true, thuCloseHour: true, closedFri: true,
+        doctors: { where: { active: true }, select: { id: true, name: true, specialty: true, color: true } } },
+    })
+    return NextResponse.json({ branches: b ? [b] : [] })
+  }
+  const ctx = tenantCtxFromUser(session)
+  if (ctx) enterTenant(ctx)
 
   const key = jMonthKey(new Date())
   const start = monthKeyStart(key)
@@ -63,7 +79,7 @@ export const GET = tenantHandler()(async (session, _request) => {
     })
   }
   return NextResponse.json({ branches: out })
-})
+}
 
 /** ایجاد شعبه جدید — فقط مدیر کل */
 export const POST = tenantHandler('ADMIN')(async (user, request) => {

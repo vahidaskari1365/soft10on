@@ -37,7 +37,7 @@ const stamp = randomBytes(4).toString('hex')
 const passA = 'TstA-' + stamp, passB = 'TstB-' + stamp
 
 async function setup() {
-  const mCookie = await login('manager', '123456')
+  const mCookie = await login('super', '123456')
   if (!mCookie) throw new Error('manager login failed')
   const cA = await api('/api/clinics', { method: 'POST', cookie: mCookie, body: { name: `کلینیک تست A-${stamp}` } })
   const cB = await api('/api/clinics', { method: 'POST', cookie: mCookie, body: { name: `کلینیک تست B-${stamp}` } })
@@ -46,7 +46,7 @@ async function setup() {
   // DATABASE_URL از .env.local خوانده می‌شود (node خودش env فایل نمی‌خواند)
   const fs = await import('node:fs')
   if (!process.env.DATABASE_URL) {
-    const line = fs.readFileSync('.env.local', 'utf8').match(/^DATABASE_URL="?([^"\n]+)"?/m)
+    const line = fs.readFileSync(fs.existsSync('.env.local') ? '.env.local' : '.env', 'utf8').match(/^DATABASE_URL="?([^"\n]+)"?/m)
     process.env.DATABASE_URL = line[1].trim()
   }
   const { PrismaClient } = await import('@prisma/client')

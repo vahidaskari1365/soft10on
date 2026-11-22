@@ -184,7 +184,7 @@ export const PATCH = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR',
   if (body.treatingDoctorId !== undefined) {
     const v = typeof body.treatingDoctorId === 'string' && body.treatingDoctorId ? body.treatingDoctorId : null
     if (v) {
-      const doc = await db.doctor.findUnique({ where: { id: v } })
+      const doc = await db.doctor.findFirst({ where: { id: v } })
       if (!doc) return NextResponse.json({ error: 'پزشک معالج یافت نشد' }, { status: 400 })
     }
     data.treatingDoctorId = v
