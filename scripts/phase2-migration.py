@@ -34,6 +34,7 @@ for m in ALL:
 # شماره per-tenant: حذف unique global، افزودن مرکب
 for tbl, con in (('Invoice','Invoice_number_key'), ('JournalEntry','JournalEntry_number_key')):
     lines.append(f'ALTER TABLE "{tbl}" DROP CONSTRAINT IF EXISTS "{con}";')
+    lines.append(f'DROP INDEX IF EXISTS "{con}";')
     lines.append(f'ALTER TABLE "{tbl}" DROP CONSTRAINT IF EXISTS "{tbl}_clinicId_number_key";')
     lines.append(f'ALTER TABLE "{tbl}" ADD CONSTRAINT "{tbl}_clinicId_number_key" UNIQUE ("clinicId", "number");')
 

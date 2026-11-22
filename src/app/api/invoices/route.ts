@@ -96,8 +96,9 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTAN
   const invoice = await db.$transaction(async (tx) => {
     const inv = await tx.invoice.create({
       data: {
+        clinicId: session.clinicId,
         number: await nextInvoiceNumber(tx, session.clinicId!),
-        branchId: assertBranch(session, typeof body.branchId === 'string' ? body.branchId : undefined) ?? session.branchId,
+        branchId: (await assertBranch(session, typeof body.branchId === 'string' ? body.branchId : undefined)) ?? session.branchId,
         patientId: body.patientId || null,
         date: new Date(),
         status: body.status === 'DRAFT' ? 'DRAFT' : 'ISSUED',

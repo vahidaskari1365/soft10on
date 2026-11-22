@@ -19,7 +19,7 @@ export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTANT
   const monthKey = valid ? raw! : lastNMonthKeys(1)[0]
   const direction = searchParams.get('direction') ?? ''
   // branchId درخواستی فقط در محدودهٔ مجاز کاربر پذیرفته می‌شود
-  const branchId = assertBranch(session, searchParams.get('branch') || undefined) ?? undefined
+  const branchId = await assertBranch(session, searchParams.get('branch') || undefined) ?? undefined
   const refType = searchParams.get('refType') ?? ''
 
   const where = {
@@ -87,7 +87,7 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTAN
   if (isNaN(date.getTime())) return NextResponse.json({ error: 'تاریخ نامعتبر است' }, { status: 400 })
 
   // شعبهٔ درخواستی فقط در محدودهٔ مجاز کاربر
-  const branchId = assertBranch(session, typeof body.branchId === 'string' ? body.branchId : undefined) ?? session.branchId
+  const branchId = await assertBranch(session, typeof body.branchId === 'string' ? body.branchId : undefined) ?? session.branchId
   const cashAccountId = typeof body.cashAccountId === 'string' && body.cashAccountId ? body.cashAccountId : null
   const patientId = typeof body.patientId === 'string' && body.patientId ? body.patientId : null
   if (!cashAccountId) {
@@ -116,6 +116,7 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTAN
 
         const created = await tx.payment.create({
           data: {
+            clinicId: session.clinicId,
             branchId,
             date,
             direction,

@@ -1,20 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { postJournal, ACC } from '@/lib/ledger'
 import { db } from '@/lib/db'
 
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const GET = tenantHandler('ADMIN', 'RECEPTIONIST', 'ACCOUNTANT')(async () => {
   const expenses = await db.expense.findMany({ orderBy: { date: 'desc' }, take: 40 })
   return NextResponse.json({ expenses })
-}
+})
 
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN')(async (session, request) => {
   const body = await request.json()
   const { category, amount, description, date } = body as { category: string; amount: number; description?: string; date?: string }
   if (!category?.trim()) return NextResponse.json({ error: 'دسته هزینه الزامی است' }, { status: 400 })
@@ -29,13 +23,14 @@ export async function POST(request: Request) {
   const expenseCode = cat === 'RENT' ? ACC.RENT : cat === 'SALARY' ? ACC.SALARY : ACC.OTHER_EXPENSE
   const expense = await db.$transaction(async (tx) => {
     const exp = await tx.expense.create({
-      data: { category: category.trim(), amount: amt, description: description ?? 'ثبت دستی', date: dt, branchId: session.branchId },
+      data: { clinicId: session.clinicId, category: category.trim(), amount: amt, description: description ?? 'ثبت دستی', date: dt, branchId: session.branchId },
     })
     // بدهکار: حساب هزینه | بستانکار: صندوق/بانک
     await postJournal(tx, {
       memo: `هزینه ${category.trim()} — ${description ?? ''}`.trim(),
       refType: 'EXPENSE',
       refId: exp.id,
+      clinicId: session.clinicId,
       branchId: session.branchId,
       createdById: session.id,
       lines: [
@@ -46,4 +41,4 @@ export async function POST(request: Request) {
     return exp
   }, { timeout: 20_000, maxWait: 10_000 })
   return NextResponse.json({ expense })
-}
+})

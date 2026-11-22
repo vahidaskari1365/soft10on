@@ -56,15 +56,18 @@ export const POST = tenantHandler('ADMIN')(async (session, request) => {
   }
 
   try {
-    const result = await db.$transaction((tx) =>
-      postJournal(tx, {
-        memo: memo.value,
-        date: date.value ?? new Date(),
-        refType: 'MANUAL',
-        branchId: session.branchId,
-        createdById: session.id,
-        lines,
-      })
+    const result = await db.$transaction(
+      (tx) =>
+        postJournal(tx, {
+          memo: memo.value,
+          date: date.value ?? new Date(),
+          refType: 'MANUAL',
+          clinicId: session.clinicId,
+          branchId: session.branchId,
+          createdById: session.id,
+          lines,
+        }),
+      { timeout: 20_000, maxWait: 10_000 },
     )
     await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'JournalEntry', entityId: result.entryId, branchId: session.branchId, clinicId: session.clinicId, meta: { number: result.number } })
     return NextResponse.json({ ok: true, ...result }, { status: 201 })

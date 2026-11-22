@@ -102,6 +102,7 @@ export const PATCH = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTA
 
         const payment = await tx.payment.create({
           data: {
+            clinicId: session.clinicId,
             branchId: invoice.branchId,
             date: new Date(),
             direction: 'IN',

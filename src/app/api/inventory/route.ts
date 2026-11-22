@@ -44,7 +44,7 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST')(async (ses
     if (branchIds.size !== 1) {
       return NextResponse.json({ error: 'تمام اقلام باید از یک شعبه باشند' }, { status: 400 })
     }
-    const branchId = assertBranch(session, products[0]?.branchId ?? undefined)
+    const branchId = await assertBranch(session, products[0]?.branchId ?? undefined)
     if (!branchId) return NextResponse.json({ error: 'شعبهٔ کالا در محدودهٔ دسترسی شما نیست' }, { status: 403 })
     if (typeof bodyTyped.patientId === 'string' && bodyTyped.patientId) {
       const pat = await db.patient.findFirst({ where: { id: bodyTyped.patientId } })
@@ -85,7 +85,7 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST')(async (ses
             revenue += unit * q
             cost += p.purchasePrice * q
             created.push(await tx.productSale.create({
-              data: { branchId: p.branchId, patientId: bodyTyped.patientId || null, productId: p.id, qty: q, unitPrice: unit, total: unit * q, date: new Date() },
+              data: { clinicId: session.clinicId, branchId: p.branchId, patientId: bodyTyped.patientId || null, productId: p.id, qty: q, unitPrice: unit, total: unit * q, date: new Date() },
             }))
           }
           if (revenue > 0 || cost > 0) {
@@ -138,7 +138,7 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST')(async (ses
   const products = await db.product.findMany({ where: { id: { in: ids } } })
   const branchIds = new Set(products.map((p) => p.branchId))
   if (branchIds.size !== 1) return NextResponse.json({ error: 'تمام اقلام باید از یک شعبه باشند' }, { status: 400 })
-  const branchId = assertBranch(session, products[0]?.branchId ?? undefined)
+  const branchId = await assertBranch(session, products[0]?.branchId ?? undefined)
   if (!branchId) return NextResponse.json({ error: 'شعبهٔ کالا در محدودهٔ دسترسی شما نیست' }, { status: 403 })
 
   type ValidRow = { productId: string; qty: number; unitPrice: number; name: string }
@@ -162,7 +162,7 @@ export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST')(async (ses
     const purchase = await db.$transaction(
       async (tx) => {
         const pur = await tx.purchase.create({
-          data: { branchId, date: new Date(), supplier, total, items: { create: validRows.map(({ productId, qty, unitPrice }) => ({ productId, qty, unitPrice })) } },
+          data: { clinicId: session.clinicId, branchId, date: new Date(), supplier, total, items: { create: validRows.map(({ productId, qty, unitPrice }) => ({ productId, qty, unitPrice })) } },
           include: { items: { include: { product: true } } },
         })
         for (const r of validRows) {

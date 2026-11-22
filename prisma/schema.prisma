@@ -463,8 +463,7 @@ model Payroll {
   method     String?
   note       String?
   createdAt  DateTime  @default(now())
-
-  @@unique([month, staffName])
+  @@unique([clinicId, month, staffName])
   @@index([clinicId])
 }
 

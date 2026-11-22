@@ -26,24 +26,25 @@ export const ACC = {
  * شمارهٔ موجود همان کلینیک بذر می‌گیرد. Constraint یکتای (clinicId, number) تضمین نهایی است.
  */
 async function atomicNext(tx: Tx, key: string, table: 'journalEntry' | 'invoice', clinicId: string): Promise<number> {
+  // value = «آخرین عدد مصرف‌شده»؛ UPDATE اتمیک همیشه عدد بعدی را قفل و برمی‌گرداند.
+  // قفل ردیف تراکنش‌های هم‌زمان را سری می‌کند → دو سند هرگز شمارهٔ یکسان نمی‌گیرند.
   const ensured = await tx.$queryRaw<{ value: string }[]>(
-    Prisma.sql`UPDATE "SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
+    Prisma.sql`UPDATE "public"."SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
   )
   if (ensured.length > 0) return Number(ensured[0].value)
 
-  // بذر اولیه از بزرگ‌ترین شمارهٔ موجود همان کلینیک (بدون تخصیص تصادفی)
+  // بذر اولیه = بزرگ‌ترین شمارهٔ موجود همان کلینیک (بدون تخصیص تصادفی)
   const agg =
     table === 'journalEntry'
       ? await tx.journalEntry.aggregate({ _max: { number: true }, where: { clinicId } })
       : await tx.invoice.aggregate({ _max: { number: true }, where: { clinicId } })
-  const seed = (agg._max.number ?? 0) + 1
-  await tx.$executeRaw(Prisma.sql`INSERT INTO "SystemMeta" ("id", "key", "value") VALUES (gen_random_uuid()::text, ${key}, ${String(seed)}) ON CONFLICT ("key") DO NOTHING`)
+  const seed = agg._max.number ?? (table === 'invoice' ? 14000 : 0)
+  await tx.$executeRaw(Prisma.sql`INSERT INTO "public"."SystemMeta" ("key", "value") VALUES (${key}, ${String(seed)}) ON CONFLICT ("key") DO NOTHING`)
   const rows = await tx.$queryRaw<{ value: string }[]>(
-    Prisma.sql`UPDATE "SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
+    Prisma.sql`UPDATE "public"."SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
   )
   if (rows.length === 0) throw new Error('خطای شماره‌گذاری سند')
-  // +1 اضافه در بذر و سپس increment — شمارهٔ مؤثر = seed
-  return Number(rows[0].value) - 1 + (seed === Number(rows[0].value) ? 1 : 0) || seed
+  return Number(rows[0].value)
 }
 
 /** شماره سند بعدی برای کلینیک — داخل تراکنش caller (اتمیک) */

@@ -85,15 +85,15 @@ import { Prisma } from '@prisma/client'
 export async function nextInvoiceNumber(tx: Prisma.TransactionClient, clinicId: string): Promise<number> {
   const key = `invoice_next:${clinicId}`
   const ensured = await tx.$queryRaw<{ value: string }[]>(
-    Prisma.sql`UPDATE "SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
+    Prisma.sql`UPDATE "public"."SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
   )
   if (ensured.length > 0) return Number(ensured[0].value)
 
   const agg = await tx.invoice.aggregate({ _max: { number: true }, where: { clinicId } })
-  const seed = (agg._max.number ?? 14000) + 1
-  await tx.$executeRaw(Prisma.sql`INSERT INTO "SystemMeta" ("id", "key", "value") VALUES (gen_random_uuid()::text, ${key}, ${String(seed - 1)}) ON CONFLICT ("key") DO NOTHING`)
+  const seed = agg._max.number ?? 14000
+  await tx.$executeRaw(Prisma.sql`INSERT INTO "public"."SystemMeta" ("key", "value") VALUES (${key}, ${String(seed)}) ON CONFLICT ("key") DO NOTHING`)
   const rows = await tx.$queryRaw<{ value: string }[]>(
-    Prisma.sql`UPDATE "SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
+    Prisma.sql`UPDATE "public"."SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
   )
   if (rows.length === 0) throw new Error('خطای شماره‌گذاری فاکتور')
   return Number(rows[0].value)

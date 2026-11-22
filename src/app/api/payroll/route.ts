@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { postJournal, ACC } from '@/lib/ledger'
 import { lastNMonthKeys } from '@/lib/jalali'
 import { doctorCommissions } from '@/lib/accounting'
@@ -12,10 +12,7 @@ const STAFF_BASE: Record<string, number> = {
 }
 
 /** حقوق و کارانه ماهانه — پیش‌نمایش محاسبه + لیست پرداخت‌شده‌ها */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const GET = tenantHandler('ADMIN', 'ACCOUNTANT')(async (session, request) => {
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
   const valid = /^\d{4}-(0[1-9]|1[0-2])$/.test(raw ?? '')
@@ -88,13 +85,10 @@ export async function GET(request: Request) {
 
   const totalDue = merged.filter((p) => p.status !== 'PAID').reduce((s, p) => s + p.total, 0)
   return NextResponse.json({ month: monthKey, rows: merged, totalDue, savedCount: saved.length })
-}
+})
 
 /** ثبت یا پرداخت حقوق — { action: 'save'|'pay', month, staffName, role, baseSalary?, overtime?, bonus?, deductions?, commission?, method?, cashAccountId? } */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as {
     action?: 'save' | 'pay'
     month?: string
@@ -126,8 +120,8 @@ export async function POST(request: Request) {
   }
 
   const payroll = await db.payroll.upsert({
-    where: { month_staffName: { month: monthKey, staffName: data.staffName } },
-    create: { ...data, branchId: body.branchId || session.branchId || null },
+    where: { clinicId_month_staffName: { clinicId: session.clinicId!, month: monthKey, staffName: data.staffName } },
+    create: { ...data, clinicId: session.clinicId, branchId: body.branchId || session.branchId || null },
     update: data,
   })
 
@@ -136,6 +130,7 @@ export async function POST(request: Request) {
       await tx.payroll.update({ where: { id: payroll.id }, data: { status: 'PAID', paidAt: new Date(), method: body.method ?? 'TRANSFER' } })
       await tx.payment.create({
       data: {
+        clinicId: session.clinicId,
         branchId: payroll.branchId,
         date: new Date(),
         direction: 'OUT',
@@ -175,4 +170,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true, payroll: { ...payroll, paidAt: payroll.paidAt?.toISOString() ?? null } }, { status: 201 })
-}
+})

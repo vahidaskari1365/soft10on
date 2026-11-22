@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSessionUser, type SessionUser } from './auth'
+import { db } from '@/lib/db'
 import { als, tenantCtxFromUser } from './tenant-als'
 
 /** خطای استاندارد API — پیام‌ها جزئیات داخلی را افشا نمی‌کنند */
@@ -56,11 +57,19 @@ export function platformHandler() {
   }
 }
 
-/** اعتبارسنجی branchId درخواستی — فقط شعبهٔ خودِ کلینیک و در محدودهٔ مجاز کاربر */
-export function assertBranch(session: SessionUser, requestedBranchId?: string | null): string | null {
+/**
+ * اعتبارسنجی branchId درخواستی — شعبه باید متعلق به کلینیک کاربر باشد؛
+ * کاربر تک‌شعبه‌ای فقط شعبهٔ خودش، مدیر کلینیک (بدون شعبه) همهٔ شعب کلینیک.
+ */
+export async function assertBranch(session: SessionUser, requestedBranchId?: string | null): Promise<string | null> {
   if (!requestedBranchId) return session.branchId ?? null
-  if (requestedBranchId !== session.branchId) {
+  if (session.branchId && requestedBranchId !== session.branchId) {
     throw new HttpError(403, 'دسترسی به این شعبه مجاز نیست')
+  }
+  if (!session.branchId) {
+    // مدیر کلینیک — شعبه باید از همان کلینیک باشد (scope خودکار Extension)
+    const br = await db.branch.findFirst({ where: { id: requestedBranchId }, select: { id: true } })
+    if (!br) throw new HttpError(403, 'دسترسی به این شعبه مجاز نیست')
   }
   return requestedBranchId
 }
