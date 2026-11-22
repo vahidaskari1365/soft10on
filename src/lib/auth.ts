@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { db } from '@/lib/db'
 import { cleanEnvValue } from '@/lib/env-value'
+import { tenantCtxFromUser } from './tenant-als'
 
 const COOKIE = 'sina_session'
 const MAX_AGE = 60 * 60 * 24 * 30 // ۳۰ روز
@@ -32,7 +33,7 @@ export type SessionUser = {
   id: string
   username: string
   fullName: string
-  role: string // ADMIN | DOCTOR | RECEPTIONIST | PATIENT
+  role: string // SUPER_ADMIN | ADMIN | MANAGER | RECEPTIONIST | DOCTOR | PATIENT
   phone: string | null
   email: string | null
   branchId: string | null
@@ -49,17 +50,21 @@ function sign(payload: string): string {
   return createHmac('sha256', getSecret()).update(payload).digest('base64url')
 }
 
-/** توکن نشست: userId.issuedAtMs.signature — امضا شامل زمان صدور است */
-export function makeToken(userId: string): string {
-  const payload = `${userId}.${Date.now()}`
+/**
+ * توکن نشست: userId.tokenVersion.issuedAtMs.signature
+ * tokenVersion در DB نگهداری می‌شود؛ افزایش آن (تغییر رمز، غیرفعال‌سازی،
+ * خروج از همه دستگاه‌ها) همهٔ توکن‌های قبلی را بی‌اعتبار می‌کند (Revocation).
+ */
+export function makeToken(userId: string, tokenVersion: number): string {
+  const payload = `${userId}.${tokenVersion}.${Date.now()}`
   return `${payload}.${sign(payload)}`
 }
 
-function parseToken(token: string): string | null {
+function parseToken(token: string): { userId: string; ver: number } | null {
   const parts = token.split('.')
-  if (parts.length !== 3) return null
-  const [userId, issuedAt, sig] = parts
-  const payload = `${userId}.${issuedAt}`
+  if (parts.length !== 4) return null
+  const [userId, ver, issuedAt, sig] = parts
+  const payload = `${userId}.${ver}.${issuedAt}`
   const expected = sign(payload)
   try {
     const a = Buffer.from(sig)
@@ -69,8 +74,10 @@ function parseToken(token: string): string | null {
     return null
   }
   const issued = Number(issuedAt)
+  const version = Number(ver)
   if (!Number.isFinite(issued) || issued <= 0 || Date.now() - issued > MAX_AGE * 1000) return null
-  return userId
+  if (!Number.isFinite(version) || version < 1) return null
+  return { userId, ver: version }
 }
 
 export function toSessionUser(u: {
@@ -105,19 +112,37 @@ export function toSessionUser(u: {
   }
 }
 
-/** خواندن کاربر جاری از کوکی (فقط در Server / Route Handler) — کاربر غیرفعال یا توکن نامعتبر رد می‌شود */
+/**
+ * خواندن کاربر جاری از کوکی (فقط در Server / Route Handler).
+ * رد می‌شود اگر: توکن نامعتبر/منقضی، کاربر غیرفعال، نسخهٔ توکن با tokenVersion
+ * کاربر نخواند (نشست ابطال‌شده)، یا کلینیک عضویت غیرفعال باشد.
+ * پس از تأیید، زمینهٔ Tenant در AsyncLocalStorage ثبت می‌شود تا Prisma (db.ts)
+ * همهٔ Queryهای ادامهٔ request را به کلینیک خود کاربر محدود کند.
+ */
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
     const store = await cookies()
     const token = store.get(COOKIE)?.value
     if (!token) return null
-    const userId = parseToken(token)
-    if (!userId) return null
+    const parsed = parseToken(token)
+    if (!parsed) return null
     const user = await db.user.findUnique({
-      where: { id: userId },
+      where: { id: parsed.userId },
       include: { branch: true, doctor: true, patient: true, clinic: true },
     })
     if (!user || !user.active) return null
+    if (user.tokenVersion !== parsed.ver) return null // نشست ابطال‌شده
+    const clinicId = user.clinicId ?? user.branch?.clinicId ?? null
+    if (clinicId && user.clinic && !user.clinic.isActive) return null // کلینیک غیرفعال
+    const ctx = tenantCtxFromUser({
+      id: user.id,
+      role: user.role,
+      clinicId,
+      branchId: user.branchId,
+      patientId: user.patientId,
+    })
+    // زمینهٔ Tenant توسط tenantHandler با als.run فعال می‌شود (enterWith در Next 16 بین
+    // فریم‌های async از بین می‌رود — اثبات‌شده با تست)
     return toSessionUser(user)
   } catch {
     return null
@@ -126,7 +151,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
 export async function setSessionCookie(userId: string) {
   const store = await cookies()
-  store.set(COOKIE, makeToken(userId), {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { tokenVersion: true } })
+  store.set(COOKIE, makeToken(userId, user?.tokenVersion ?? 1), {
     httpOnly: true,
     sameSite: 'lax',
     secure: isProduction,
@@ -140,10 +166,18 @@ export async function clearSessionCookie() {
   store.set(COOKIE, '', { httpOnly: true, sameSite: 'lax', secure: isProduction, path: '/', maxAge: 0 })
 }
 
+/** ابطال همهٔ نشست‌های کاربر — با تغییر رمز، غیرفعال‌سازی یا «خروج از همه دستگاه‌ها» */
+export async function revokeAllSessions(userId: string): Promise<void> {
+  await db.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } })
+}
+
 export const ROLE_FA: Record<string, string> = {
+  SUPER_ADMIN: 'مدیر پلتفرم',
   ADMIN: 'مدیر کل',
+  MANAGER: 'مدیر عملیات',
   DOCTOR: 'پزشک',
   RECEPTIONIST: 'منشی پذیرش',
+  ACCOUNTANT: 'حسابدار',
   PATIENT: 'بیمار',
 }
 

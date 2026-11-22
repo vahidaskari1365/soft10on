@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { vStr, vPhone, vNationalId, vEmail, vInt, vEnum, vDate, BLOOD_TYPES, GENDERS, PATIENT_STATUS } from '@/lib/validation'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
@@ -10,13 +10,12 @@ import { logAudit } from '@/lib/audit'
  * هویت کامل، نوبت‌ها، فاکتورها و پرداخت‌ها، پیام‌ها، پرونده پزشکی، اسناد، نسخه‌ها،
  * طرح درمان، تماس اضطراری و تایم‌لاین — بیمار فقط پرونده خودش را می‌بیند.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const GET = tenantHandler()(async (session, _request, { params }) => {
   const { id } = await params
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
   if (session.role === 'PATIENT' && session.patientId !== id)
     return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
-  const patient = await db.patient.findUnique({ where: { id }, include: { treatingDoctor: { select: { id: true, name: true } } } })
+  // findFirst با تزریق خودکار clinicId توسط Extension — findUnique بدون scope ممنوع
+  const patient = await db.patient.findFirst({ where: { id }, include: { treatingDoctor: { select: { id: true, name: true } } } })
   if (!patient) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
   const [history, sales, invoices, payments, messages, records, documents, prescriptions, plans, emergency, timeline] = await Promise.all([
@@ -96,7 +95,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     totalDebt: totalDebtPositive,
     lastVisit: visits[0]?.start ?? null,
   })
-}
+})
 
 const OPT_FIELDS = [
   ['landline', 'تلفن ثابت', 12], ['province', 'استان', 60], ['city', 'شهر', 60], ['address', 'آدرس', 300],
@@ -108,11 +107,8 @@ const OPT_FIELDS = [
 ] as const
 
 /** ویرایش اطلاعات بیمار — فقط کارکنان؛ اعتبارسنجی کامل + ثبت تایم‌لاین و حسابرسی */
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const PATCH = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', 'ACCOUNTANT')(async (session, request, { params }) => {
   const { id } = await params
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const data: Record<string, string | number | boolean | Date | null> = {}
@@ -215,7 +211,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (Object.keys(data).length === 0) return NextResponse.json({ error: 'فیلدی برای ویرایش ارسال نشده' }, { status: 400 })
 
-  const existing = await db.patient.findUnique({ where: { id } })
+  // فقط بیمار همان کلینیک — با scope خودکار Extension
+  const existing = await db.patient.findFirst({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'یافت نشد' }, { status: 404 })
 
   const patient = await db.patient.update({ where: { id }, data })
@@ -224,4 +221,4 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   await logAudit({ userId: session.id, userName: session.fullName, action: 'UPDATE', entity: 'Patient', entityId: id, branchId: session.branchId, clinicId: session.clinicId, meta: { fields: changed } })
 
   return NextResponse.json({ patient })
-}
+})

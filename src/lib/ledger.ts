@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 
 type Tx = Prisma.TransactionClient
 
-/** کدینگ پیش‌فرض حساب‌ها */
+/** کدینگ پیش‌فرض حساب‌ها (کدینگ مشترک پلتفرم — دادهٔ مالی در JournalEntry با clinicId جداست) */
 export const ACC = {
   CASH: '1001',
   BANK: '1002',
@@ -20,16 +20,35 @@ export const ACC = {
   COGS: '5004',
 } as const
 
-/** شماره سند اتمیک — با قفل ردیف SystemMeta داخل تراکنش */
-export async function nextJournalNumber(tx: Tx): Promise<number> {
-  const meta = await tx.systemMeta.findUnique({ where: { key: 'journal_next_number' } })
-  const next = Number(meta?.value ?? 1) || 1
-  await tx.systemMeta.upsert({
-    where: { key: 'journal_next_number' },
-    update: { value: String(next + 1) },
-    create: { key: 'journal_next_number', value: String(next + 1) },
-  })
-  return next
+/**
+ * شماره سند اتمیک per-clinic — قفل ردیف شمارنده با UPDATE ... RETURNING در همان تراکنش.
+ * شمارنده در SystemMeta با کلید journal_next:{clinicId} نگهداری می‌شود و از بزرگ‌ترین
+ * شمارهٔ موجود همان کلینیک بذر می‌گیرد. Constraint یکتای (clinicId, number) تضمین نهایی است.
+ */
+async function atomicNext(tx: Tx, key: string, table: 'journalEntry' | 'invoice', clinicId: string): Promise<number> {
+  const ensured = await tx.$queryRaw<{ value: string }[]>(
+    Prisma.sql`UPDATE "SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
+  )
+  if (ensured.length > 0) return Number(ensured[0].value)
+
+  // بذر اولیه از بزرگ‌ترین شمارهٔ موجود همان کلینیک (بدون تخصیص تصادفی)
+  const agg =
+    table === 'journalEntry'
+      ? await tx.journalEntry.aggregate({ _max: { number: true }, where: { clinicId } })
+      : await tx.invoice.aggregate({ _max: { number: true }, where: { clinicId } })
+  const seed = (agg._max.number ?? 0) + 1
+  await tx.$executeRaw(Prisma.sql`INSERT INTO "SystemMeta" ("id", "key", "value") VALUES (gen_random_uuid()::text, ${key}, ${String(seed)}) ON CONFLICT ("key") DO NOTHING`)
+  const rows = await tx.$queryRaw<{ value: string }[]>(
+    Prisma.sql`UPDATE "SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
+  )
+  if (rows.length === 0) throw new Error('خطای شماره‌گذاری سند')
+  // +1 اضافه در بذر و سپس increment — شمارهٔ مؤثر = seed
+  return Number(rows[0].value) - 1 + (seed === Number(rows[0].value) ? 1 : 0) || seed
+}
+
+/** شماره سند بعدی برای کلینیک — داخل تراکنش caller (اتمیک) */
+export async function nextJournalNumber(tx: Tx, clinicId: string): Promise<number> {
+  return atomicNext(tx, `journal_next:${clinicId}`, 'journalEntry', clinicId)
 }
 
 export type JournalLineInput = { code: string; debit?: number; credit?: number; detail?: string }
@@ -37,6 +56,7 @@ export type JournalLineInput = { code: string; debit?: number; credit?: number; 
 /**
  * ثبت سند دوبل داخل تراکنش caller — جمع بدهکار و بستانکار باید برابر باشد.
  * اعداد صحیح تومان؛ اعشار گرد می‌شود و مبلغ منفی ممنوع است.
+ * clinicId الزامی است (از session یا branchId استخراج می‌شود) — سند بین‌کلینیکی ممنوع.
  */
 export async function postJournal(
   tx: Tx,
@@ -45,6 +65,7 @@ export async function postJournal(
     memo: string
     refType?: string
     refId?: string
+    clinicId?: string | null
     branchId?: string | null
     createdById?: string | null
     lines: JournalLineInput[]
@@ -66,7 +87,15 @@ export async function postJournal(
     throw new Error(`سند تراز نیست: بدهکار ${debitSum} ≠ بستانکار ${creditSum}`)
   }
 
-  const number = await nextJournalNumber(tx)
+  // تعیین clinicId — بدون آن هیچ سندی ثبت نمی‌شود
+  let clinicId = opts.clinicId ?? null
+  if (!clinicId && opts.branchId) {
+    const br = await tx.branch.findUnique({ where: { id: opts.branchId }, select: { clinicId: true } })
+    clinicId = br?.clinicId ?? null
+  }
+  if (!clinicId) throw new Error('ثبت سند بدون کلینیک مجاز نیست')
+
+  const number = await nextJournalNumber(tx, clinicId)
   const entry = await tx.journalEntry.create({
     data: {
       number,
@@ -74,6 +103,7 @@ export async function postJournal(
       memo: opts.memo,
       refType: opts.refType,
       refId: opts.refId,
+      clinicId,
       branchId: opts.branchId ?? null,
       status: 'POSTED',
       createdById: opts.createdById ?? null,
@@ -83,7 +113,7 @@ export async function postJournal(
             const account = await tx.ledgerAccount.findUnique({ where: { code: l.code } })
             if (!account) throw new Error(`حساب ${l.code} یافت نشد`)
             return { accountId: account.id, debit: l.debit, credit: l.credit, detail: l.detail }
-          })
+          }),
         ),
       },
     },
@@ -91,11 +121,13 @@ export async function postJournal(
   return { entryId: entry.id, number: entry.number }
 }
 
-/** تراز آزمایشی از اسناد POSTED */
-export async function trialBalance(): Promise<{ code: string; name: string; type: string; debit: number; credit: number }[]> {
+/** تراز آزمایشی per-clinic — فقط اسناد POSTED همان کلینیک */
+export async function trialBalance(
+  clinicId: string | null,
+): Promise<{ code: string; name: string; type: string; debit: number; credit: number }[]> {
   const accounts = await db.ledgerAccount.findMany({ orderBy: { code: 'asc' } })
   const entries = await db.journalEntry.findMany({
-    where: { status: 'POSTED' },
+    where: { status: 'POSTED', ...(clinicId ? { clinicId } : {}) },
     include: { lines: true },
   })
   const byCode = new Map<string, { debit: number; credit: number }>()

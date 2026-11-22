@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { vStr, vPhone, vNationalId, vEmail, vInt, vEnum, vDate, BLOOD_TYPES, GENDERS, PATIENT_STATUS, POSTAL_CODE_RE } from '@/lib/validation'
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
 
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', 'ACCOUNTANT')(async () => {
   const patients = await db.patient.findMany({ orderBy: { createdAt: 'asc' } })
   const now = new Date()
   const sixMonthsAgo = new Date(now.getTime() - 182 * 86400000)
@@ -42,14 +39,10 @@ export async function GET() {
   })
 
   return NextResponse.json({ patients: list })
-}
+})
 
 /** ثبت بیمار جدید — فقط کارکنان؛ اعتبارسنجی کامل هویتی و پزشکی */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
-
+export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', 'ACCOUNTANT')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
 
   const firstName = vStr(body.firstName, { required: true, min: 2, max: 60, label: 'نام' })
@@ -80,7 +73,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'کد پستی باید ۱۰ رقم باشد' }, { status: 400 })
   const treatingDoctorId = typeof body.treatingDoctorId === 'string' && body.treatingDoctorId ? body.treatingDoctorId : null
   if (treatingDoctorId) {
-    const doc = await db.doctor.findUnique({ where: { id: treatingDoctorId } })
+    // findFirst با scope خودکار — پزشک باید از همان کلینیک باشد
+    const doc = await db.doctor.findFirst({ where: { id: treatingDoctorId } })
     if (!doc) return NextResponse.json({ error: 'پزشک معالج یافت نشد' }, { status: 400 })
   }
 
@@ -169,4 +163,4 @@ export async function POST(request: Request) {
   await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'Patient', entityId: patient.id, branchId: session.branchId, clinicId: session.clinicId, meta: { fileNo, phone: phone.value.slice(0, 4) + '****' } })
 
   return NextResponse.json({ patient }, { status: 201 })
-}
+})

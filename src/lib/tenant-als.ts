@@ -1,0 +1,47 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+
+/**
+ * زمینهٔ Tenant در سطح درخواست — پس از حل Session توسط auth.ts تنظیم می‌شود و
+ * Prisma Client Extension (در db.ts) برای هر Query به‌طور خودکار اعمالش می‌کند.
+ * این لایه، دفاع مرکزی IDOR است: هیچ Route نباید به فیلد clinicId ارسالی کلاینت اعتماد کند.
+ */
+export type TenantCtx = {
+  clinicId: string
+  userId: string
+  role: string
+  branchId: string | null // شعبهٔ مجاز کاربر؛ null = همهٔ شعب کلینیک (مدیر)
+  patientId: string | null // برای نقش بیمار — محدودسازی به رکوردهای خودش
+}
+
+const g = globalThis as unknown as { __tenonAls?: AsyncLocalStorage<TenantCtx> }
+// Singleton سراسری — جلوگیری از دوباره‌ساخت ماژول در باندل‌های جدا Turbopack
+// (دو نمونهٔ AsyncLocalStorage = store در یکی نوشته و در دیگری خوانده می‌شود!)
+export const als: AsyncLocalStorage<TenantCtx> = (g.__tenonAls ??= new AsyncLocalStorage<TenantCtx>())
+
+/** فعال‌سازی زمینه برای ادامهٔ زنجیرهٔ async همین request */
+export function enterTenant(ctx: TenantCtx): void {
+  als.enterWith(ctx)
+}
+
+/** زمینهٔ جاری — null یعنی بدون scope (bootstrap، کار پلتفرمی یا بدون سشن) */
+export function currentTenant(): TenantCtx | null {
+  return als.getStore() ?? null
+}
+
+/** ساخت زمینه از خروجی SessionUser — کاربر پلتفرمی (بدون کلینیک) زمینه نمی‌گیرد */
+export function tenantCtxFromUser(u: {
+  id: string
+  role: string
+  clinicId: string | null
+  branchId: string | null
+  patientId: string | null
+}): TenantCtx | null {
+  if (!u.clinicId) return null
+  return {
+    clinicId: u.clinicId,
+    userId: u.id,
+    role: u.role,
+    branchId: u.branchId,
+    patientId: u.patientId,
+  }
+}

@@ -153,7 +153,7 @@ ${facts.services.join(' | ')}
 
 export async function POST(request: Request) {
   const session = await getSessionUser()
-  const rl = rateLimit(`ai:{session.id}`, 20, 60_000)
+  const rl = rateLimit(`ai:${session?.id ?? 'anon'}`, 20, 60_000)
   if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
   if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
   const body = await request.json()

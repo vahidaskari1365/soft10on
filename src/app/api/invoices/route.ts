@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { assertBranch, tenantHandler } from '@/lib/tenant'
 import { postJournal, ACC } from '@/lib/ledger'
 import { monthKeyStart, monthKeyEnd, lastNMonthKeys } from '@/lib/jalali'
 import { nextInvoiceNumber, refreshInvoiceStatus } from '@/lib/accounting'
@@ -8,10 +8,7 @@ import { nextInvoiceNumber, refreshInvoiceStatus } from '@/lib/accounting'
 type ItemInput = { kind?: string; refId?: string; title?: string; qty?: number; unitPrice?: number }
 
 /** لیست فاکتورها با فیلتر ماه/وضعیت/جستجو */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', 'ACCOUNTANT')(async (session, request) => {
 
   const { searchParams } = new URL(request.url)
   const raw = searchParams.get('month')
@@ -63,13 +60,10 @@ export async function GET(request: Request) {
     })),
     stats: { count: totals._count, total: totals._sum.total ?? 0, discount: totals._sum.discount ?? 0, paidSum, remaining },
   })
-}
+})
 
 /** صدور فاکتور — { patientId?, branchId?, discount, note, items: [{kind, refId, title, qty, unitPrice}] } */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role === 'PATIENT') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTANT')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as {
     patientId?: string
     branchId?: string
@@ -102,8 +96,8 @@ export async function POST(request: Request) {
   const invoice = await db.$transaction(async (tx) => {
     const inv = await tx.invoice.create({
       data: {
-        number: await nextInvoiceNumber(tx),
-        branchId: body.branchId || session.branchId || null,
+        number: await nextInvoiceNumber(tx, session.clinicId!),
+        branchId: assertBranch(session, typeof body.branchId === 'string' ? body.branchId : undefined) ?? session.branchId,
         patientId: body.patientId || null,
         date: new Date(),
         status: body.status === 'DRAFT' ? 'DRAFT' : 'ISSUED',
@@ -122,10 +116,10 @@ export async function POST(request: Request) {
       ]
       if (inv.subtotal > 0) jLines.push({ code: ACC.SERVICE_REVENUE, credit: inv.subtotal, detail: `فاکتور ${inv.number}` })
       if (inv.discount > 0) jLines.push({ code: ACC.SALES_DISCOUNT, debit: inv.discount, detail: `تخفیف فاکتور ${inv.number}` })
-      await postJournal(tx, { memo: `صدور فاکتور شماره ${inv.number}`, refType: 'INVOICE', refId: inv.id, branchId: inv.branchId, createdById: session.id, lines: jLines })
+      await postJournal(tx, { memo: `صدور فاکتور شماره ${inv.number}`, refType: 'INVOICE', refId: inv.id, clinicId: session.clinicId, branchId: inv.branchId, createdById: session.id, lines: jLines })
     }
     return inv
   }, { timeout: 20_000, maxWait: 10_000 })
   void refreshInvoiceStatus(invoice.id)
   return NextResponse.json({ invoice }, { status: 201 })
-}
+})

@@ -123,7 +123,7 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
     )
   }
 
-  const nav = user.role === 'ADMIN' ? NAV_ADMIN : user.role === 'RECEPTIONIST' ? NAV_RECEPTION : user.role === 'DOCTOR' ? NAV_DOCTOR : NAV_PATIENT
+  const nav = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' ? NAV_ADMIN : user.role === 'RECEPTIONIST' ? NAV_RECEPTION : user.role === 'DOCTOR' ? NAV_DOCTOR : NAV_PATIENT
   const RoleIcon = ROLE_ICON[user.role] ?? UserRound
 
   async function logout() {

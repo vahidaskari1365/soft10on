@@ -78,22 +78,36 @@ export type CashBalance = Awaited<ReturnType<typeof cashBalances>>[number]
 /** شماره فاکتور بعدی */
 import { Prisma } from '@prisma/client'
 
-export async function nextInvoiceNumber(tx?: Prisma.TransactionClient): Promise<number> {
-  const last = await (tx ?? db).invoice.findFirst({ orderBy: { number: 'desc' }, select: { number: true } })
-  return (last?.number ?? 14000) + 1
+/**
+ * شماره فاکتور اتمیک per-clinic — قفل ردیف شمارنده (UPDATE ... RETURNING) در تراکنش.
+ * Constraint یکتای (clinicId, number) تضمین نهایی یکتایی است.
+ */
+export async function nextInvoiceNumber(tx: Prisma.TransactionClient, clinicId: string): Promise<number> {
+  const key = `invoice_next:${clinicId}`
+  const ensured = await tx.$queryRaw<{ value: string }[]>(
+    Prisma.sql`UPDATE "SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
+  )
+  if (ensured.length > 0) return Number(ensured[0].value)
+
+  const agg = await tx.invoice.aggregate({ _max: { number: true }, where: { clinicId } })
+  const seed = (agg._max.number ?? 14000) + 1
+  await tx.$executeRaw(Prisma.sql`INSERT INTO "SystemMeta" ("id", "key", "value") VALUES (gen_random_uuid()::text, ${key}, ${String(seed - 1)}) ON CONFLICT ("key") DO NOTHING`)
+  const rows = await tx.$queryRaw<{ value: string }[]>(
+    Prisma.sql`UPDATE "SystemMeta" SET value = (COALESCE(value::bigint, 0) + 1)::text WHERE key = ${key} RETURNING value`,
+  )
+  if (rows.length === 0) throw new Error('خطای شماره‌گذاری فاکتور')
+  return Number(rows[0].value)
 }
 
-/** به‌روزرسانی وضعیت پرداخت فاکتور بر اساس جمع پرداخت‌ها */
-export async function refreshInvoiceStatus(invoiceId: string) {
-  const invoice = await db.invoice.findUnique({
-    where: { id: invoiceId },
-    include: { payments: { where: { refType: 'INVOICE' } } },
-  })
+/** به‌روزرسانی وضعیت پرداخت فاکتور — ترجیحاً داخل همان تراکنش ثبت پرداخت (tx) */
+export async function refreshInvoiceStatus(invoiceId: string, tx?: Prisma.TransactionClient) {
+  const client = tx ?? db
+  const invoice = await client.invoice.findFirst({ where: { id: invoiceId }, include: { payments: { where: { refType: 'INVOICE' } } } })
   if (!invoice || invoice.status === 'CANCELLED' || invoice.status === 'DRAFT') return invoice?.status ?? null
   const paid = invoice.payments.reduce((s, p) => s + p.amount, 0)
   const status = paid <= 0 ? 'ISSUED' : paid >= invoice.total - 0.5 ? 'PAID' : 'PARTIAL'
   if (status !== invoice.status) {
-    await db.invoice.update({ where: { id: invoiceId }, data: { status } })
+    await client.invoice.update({ where: { id: invoiceId }, data: { status } })
   }
   return status
 }

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 
 type AuditInput = {
@@ -17,10 +18,11 @@ type AuditInput = {
  * ثبت ردپای حسابرسی — هرگز رمز، کلید یا محتوای پزشکی در meta ثبت نمی‌شود؛
  * فقط شناسه‌ها، نوع عملیات و متادیتای ایمن. خطای لاگ عملیات اصلی را نمی‌شکند.
  */
-export async function logAudit(opts: AuditInput): Promise<void> {
+export async function logAudit(opts: AuditInput, tx?: Prisma.TransactionClient): Promise<void> {
   try {
     const { meta, ...rest } = opts
-    await db.auditLog.create({
+    // داخل تراکنش caller ثبت می‌شود تا شکست Audit = شکست عملیات اصلی باشد
+    await (tx ?? db).auditLog.create({
       data: {
         ...rest,
         result: rest.result ?? 'SUCCESS',

@@ -330,9 +330,9 @@ async function fallback(userMessage: string): Promise<{ answer: string; steps: A
 
 export async function POST(request: Request) {
   const user = await requireRole('ADMIN')
-  const rl = rateLimit(`ai:{user.id}`, 20, 60_000)
-  if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
   if (!user) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+  const rl = rateLimit(`ai:${user.id}`, 20, 60_000)
+  if (!rl.ok) return NextResponse.json({ error: 'درخواست‌های زیادی ارسال شده؛ کمی بعد تلاش کنید' }, { status: 429 })
 
   const body = await request.json().catch(() => ({}))
   const message = String(body.message ?? '').trim()

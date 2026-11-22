@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { platformHandler } from '@/lib/tenant'
 import { logAudit } from '@/lib/audit'
 
 /** مدیریت کلینیک‌های پلتفرم (SaaS) — فقط مدیر کل سیستم */
-export async function GET() {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
-
+export const GET = platformHandler()(async () => {
   const clinics = await db.clinic.findMany({
     orderBy: { createdAt: 'desc' },
     include: {
@@ -38,13 +34,10 @@ export async function GET() {
     })),
     plans,
   })
-}
+})
 
 /** ثبت کلینیک جدید */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const POST = platformHandler()(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const name = typeof body.name === 'string' ? body.name.trim() : ''
@@ -67,13 +60,10 @@ export async function POST(request: Request) {
   })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'CREATE', entity: 'Clinic', entityId: clinic.id, branchId: null, clinicId: clinic.id, meta: { name } })
   return NextResponse.json({ clinic }, { status: 201 })
-}
+})
 
 /** ویرایش کلینیک — تخصیص/تغییر پلن، فعال/تعلیق */
-export async function PATCH(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+export const PATCH = platformHandler()(async (session, request) => {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const id = typeof body.id === 'string' ? body.id : ''
@@ -105,4 +95,4 @@ export async function PATCH(request: Request) {
   const updated = await db.clinic.update({ where: { id }, data })
   await logAudit({ userId: session.id, userName: session.fullName, action: 'UPDATE', entity: 'Clinic', entityId: id, branchId: null, clinicId: id, meta: { keys: Object.keys(data) } })
   return NextResponse.json({ clinic: updated })
-}
+})

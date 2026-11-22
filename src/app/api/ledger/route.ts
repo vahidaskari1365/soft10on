@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { tenantHandler } from '@/lib/tenant'
 import { postJournal, trialBalance, ACC } from '@/lib/ledger'
 import { vInt, vStr, vDate } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
@@ -9,12 +9,7 @@ import { logAudit } from '@/lib/audit'
  * حسابداری دوبل — کدینگ، اسناد، دفتر روزنامه و تراز آزمایشی.
  * مشاهده: ADMIN و RECEPTIONIST | ثبت سند دستی: فقط ADMIN
  */
-export async function GET(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST')
-    return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
-
+export const GET = tenantHandler('ADMIN', 'RECEPTIONIST', 'ACCOUNTANT')(async (session, request) => {
   const { searchParams } = new URL(request.url)
   const view = searchParams.get('view') ?? 'summary'
 
@@ -23,7 +18,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ accounts })
   }
   if (view === 'trial') {
-    const tb = await trialBalance()
+    const tb = await trialBalance(session.clinicId)
     const debit = tb.reduce((s, r) => s + r.debit, 0)
     const credit = tb.reduce((s, r) => s + r.credit, 0)
     return NextResponse.json({ trialBalance: tb, debit, credit, balanced: debit === credit })
@@ -36,14 +31,10 @@ export async function GET(request: Request) {
     take,
   })
   return NextResponse.json({ entries })
-}
+})
 
 /** ثبت سند دستی — باید تراز باشد؛ فقط مدیر */
-export async function POST(request: Request) {
-  const session = await getSessionUser()
-  if (!session) return NextResponse.json({ error: 'ابتدا وارد شوید' }, { status: 401 })
-  if (session.role !== 'ADMIN') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
-
+export const POST = tenantHandler('ADMIN')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const memo = vStr(body.memo, { required: true, min: 2, max: 200, label: 'شرح سند' })
   if (!memo.ok) return NextResponse.json({ error: memo.error }, { status: 400 })
@@ -80,4 +71,4 @@ export async function POST(request: Request) {
   } catch (e) {
     return NextResponse.json({ error: String((e as Error).message) }, { status: 400 })
   }
-}
+})

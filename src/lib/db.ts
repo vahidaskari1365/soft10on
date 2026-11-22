@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { PrismaClient } from '@prisma/client'
 import { cleanEnvValue } from './env-value'
+import { currentTenant } from './tenant-als'
 
 // ------------------------------------------------------------------
 // بوت‌استرپ دیتابیس برای استقرار سرورلس (Vercel و مشابه)
@@ -110,6 +111,55 @@ function requireDatabaseUrl() {
   bootstrapSqliteFallback(url)
 }
 
+// ------------------------------------------------------------------
+// جداسازی Tenant — مدل‌های دارای ستون clinicId (اعمال خودکار)
+// LedgerAccount عمداً مستثناست: کدینگ حساب‌ها مشترک است؛ دادهٔ مالی در
+// JournalEntry (scoped) نگهداری می‌شود. User هم مستثناست (کار پلتفرمی).
+// ------------------------------------------------------------------
+const TENANT_SCOPED = new Set([
+  'Patient', 'Appointment', 'Task', 'Product', 'Purchase', 'ProductSale', 'Expense',
+  'CashAccount', 'Invoice', 'Payment', 'Check', 'Payroll', 'Message',
+  'Waitlist', 'PublicBooking', 'RoomUnit', 'Holiday', 'MedicalRecord',
+  'JournalEntry', 'Prescription', 'TreatmentPlan', 'EmergencyContact',
+  'TimelineEvent', 'AppointmentHistory', 'Service', 'Supplier', 'Branch',
+  'Document', 'AuditLog',
+])
+
+/** مدل‌های دارای patientId — برای نقش بیمار فقط رکوردهای خودش */
+const PATIENT_OWNED = new Set([
+  'Appointment', 'Invoice', 'Payment', 'Check', 'MedicalRecord', 'ProductSale',
+  'TreatmentPlan', 'Prescription', 'Document', 'TimelineEvent',
+  'EmergencyContact', 'Message',
+])
+
+/** عملیات where-پذیر که تزریق امن دارند (unique-whereها مستثنا) */
+const SCOPED_METHODS = new Set([
+  'findMany', 'findFirst', 'findFirstOrThrow', 'count', 'aggregate',
+  'groupBy', 'updateMany', 'deleteMany', 'create', 'createMany',
+])
+
+type AnyArgs = Record<string, unknown>
+
+/** ترکیب شرط where با AND — بدون تخریب شرط موجود */
+function andWhere(args: AnyArgs, cond: AnyArgs) {
+  const w = (args.where ?? {}) as AnyArgs
+  args.where = { AND: [cond, w] }
+}
+
+/** تزریق clinicId به دادهٔ create (تکی یا گروهی) — مقدار ناسازگار ممنوع */
+function injectClinicId(args: AnyArgs, clinicId: string) {
+  if (!('data' in args) || !args.data || typeof args.data !== 'object') return
+  const rows: unknown[] = Array.isArray(args.data) ? args.data : [args.data]
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    const r = row as AnyArgs
+    if ('clinicId' in r && r.clinicId !== clinicId) {
+      throw new Error('TENANT_MISMATCH: clinicId با زمینهٔ سشن نمی‌خواند')
+    }
+    if (!('clinicId' in r)) r.clinicId = clinicId
+  }
+}
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
@@ -128,16 +178,54 @@ function getDb(): PrismaClient {
   return client
 }
 
+type AnyFn = (...args: unknown[]) => unknown
+
+/** wrap متدهای یک delegate مدل با منطق Tenant */
+function scopedDelegate(model: string, delegate: object): object {
+  return new Proxy(delegate, {
+    get(d, method) {
+      const v: unknown = Reflect.get(d, method, d)
+      if (typeof v !== 'function') return v
+      const fn = v as AnyFn
+      const m = String(method)
+      if (!SCOPED_METHODS.has(m)) return fn.bind(d)
+      return (...callArgs: unknown[]) => {
+        const ctx = currentTenant()
+        if (process.env.NODE_ENV !== 'production' && process.env.TENANT_DEBUG === '1') {
+          console.log(`[tenant] ${model}.${m} ctx=${ctx ? ctx.clinicId.slice(-6) : 'null'}`)
+        }
+        const first = (callArgs[0] ?? {}) as AnyArgs
+        if (ctx) {
+          if (m === 'create' || m === 'createMany') injectClinicId(first, ctx.clinicId)
+          else if (TENANT_SCOPED.has(model)) andWhere(first, { clinicId: ctx.clinicId })
+          if (ctx.role === 'PATIENT' && PATIENT_OWNED.has(model)) andWhere(first, { patientId: ctx.patientId })
+          if (ctx.role === 'PATIENT' && model === 'Patient') andWhere(first, { id: ctx.patientId })
+        }
+        callArgs[0] = first
+        return fn.apply(d, callArgs)
+      }
+    },
+  })
+}
+
 /**
- * دسترسی lazy به Prisma — کلاینت و گارد پیکربندی فقط با اولین دسترسی واقعی
- * ساخته/اجرا می‌شوند تا build ورسل (جمع‌آوری داده صفحات) بدون متغیر محیطی هم سبز بماند.
+ * دسترسی lazy به Prisma + دفاع مرکزی Tenant:
+ * هر `db.<model>` یک delegate مجهز به scope سشن برمی‌گرداند.
+ * داخل db.$transaction کلاینت tx خام است — Routeهای مالی باید scope را
+ * صریح اعمال کنند (helpers در tenant.ts).
  */
-export const db: PrismaClient = new Proxy({} as PrismaClient, {
+export const db = new Proxy({} as PrismaClient, {
   get(_target, prop) {
     const real = getDb()
-    const value: unknown = Reflect.get(real, prop, real)
-    return typeof value === 'function'
-      ? (value as (...args: unknown[]) => unknown).bind(real)
-      : value
+    const name = String(prop)
+    if (name.startsWith('$')) {
+      const v: unknown = Reflect.get(real, prop, real)
+      return typeof v === 'function' ? (v as AnyFn).bind(real) : v
+    }
+    // نام مدل: حرف اول بزرگ (patient → Patient)
+    const model = name.charAt(0).toUpperCase() + name.slice(1)
+    const delegateV: unknown = Reflect.get(real, prop, real)
+    if (!delegateV || typeof delegateV !== 'object') return delegateV
+    return scopedDelegate(model, delegateV as object)
   },
-})
+}) as PrismaClient
