@@ -12,6 +12,11 @@ import { PrismaClient } from '@prisma/client'
 // /tmp؛ پس در اولین اجرای هر نمونهٔ تابع (cold start)، دیتابیس بذر
 // (db/seed.db) که داخل باندل قرار دارد به /tmp/10on.db کپی می‌شود و
 // DATABASE_URL به همان مسیر تغییر می‌کند.
+//
+// نکتهٔ مهم (lazy): هیچ گارد پیکربندی در زمان import اجرا نمی‌شود؛
+// وگرنه مرحلهٔ «Collecting page data» در build ورسل — که هنوز متغیرهای
+// محیطی را تزریق نکرده — با خطا متوقف می‌شد. گارد fail-closed و ساخت
+// کلاینت با اولین دسترسی واقعی به دیتابیس انجام می‌شود.
 // ------------------------------------------------------------------
 
 /** خواندن DATABASE_URL از فایل‌های env پروژه (برای محیط‌هایی که متغیر ناسازگار تزریق می‌کنند) */
@@ -28,31 +33,8 @@ function envFileUrl(): string | null {
   return null
 }
 
-function bootstrapDatabase() {
-  const url = process.env.DATABASE_URL ?? ''
-
-  // PostgreSQL/Supabase — بدون بوت‌استرپ
-  if (url.startsWith('postgres')) return
-
-  // متغیر وراثتی ناسازگار (file:) → اولویت با PostgreSQL داخل .env پروژه
-  const fromEnvFile = envFileUrl()
-  if (fromEnvFile?.startsWith('postgres')) {
-    process.env.DATABASE_URL = fromEnvFile
-    return
-  }
-
-  // ————— Production: بدون DATABASE_URL باید امن متوقف شود —————
-  // هیچ fallback فایلِ حاوی اعتبارنامه، هیچ دیتابیس آزمایشی خاموش.
-  // خطا نباید مقدار تلاش‌شده یا بخشی از رشته اتصال را نشان دهد.
-  const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
-  if (isProduction) {
-    throw new Error(
-      'CONFIGURATION ERROR: DATABASE_URL environment variable is required in production. ' +
-        'Set it in the hosting provider (e.g. Vercel Project Settings → Environment Variables). ' +
-        'Refusing to start with a demo database.'
-    )
-  }
-
+/** بوت‌استرپ SQLite برای توسعه — فقط در محیط غیر production فراخوانی می‌شود */
+function bootstrapSqliteFallback(url: string) {
   const filePart = url.startsWith('file:') ? url.slice('file:'.length) : ''
 
   // آیا فایل تنظیم‌شده وجود دارد؟ (نسبت به ریشه پروژه و پوشه prisma)
@@ -93,16 +75,65 @@ function bootstrapDatabase() {
   process.env.DATABASE_URL = `file:${target}`
 }
 
-bootstrapDatabase()
+/**
+ * اتصال دیتابیس را تضمین می‌کند — فقط با اولین دسترسی واقعی صدا زده می‌شود.
+ * Production بدون DATABASE_URL امن متوقف می‌شود (fail-closed):
+ * هیچ fallback فایلِ حاوی اعتبارنامه، هیچ دیتابیس آزمایشی خاموش.
+ * خطا نباید مقدار تلاش‌شده یا بخشی از رشته اتصال را نشان دهد.
+ */
+function requireDatabaseUrl() {
+  const url = process.env.DATABASE_URL ?? ''
+
+  // PostgreSQL/Supabase — بدون بوت‌استرپ
+  if (url.startsWith('postgres')) return
+
+  // متغیر وراثتی ناسازگار (file:) → اولویت با PostgreSQL داخل .env پروژه
+  const fromEnvFile = envFileUrl()
+  if (fromEnvFile?.startsWith('postgres')) {
+    process.env.DATABASE_URL = fromEnvFile
+    return
+  }
+
+  const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
+  if (isProduction) {
+    throw new Error(
+      'CONFIGURATION ERROR: DATABASE_URL environment variable is required in production. ' +
+        'Set it in the hosting provider (e.g. Vercel Project Settings → Environment Variables). ' +
+        'Refusing to start with a demo database.'
+    )
+  }
+
+  bootstrapSqliteFallback(url)
+}
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'production' ? ['error'] : ['query', 'error'],
-  })
+let client: PrismaClient | undefined
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+function getDb(): PrismaClient {
+  if (!client) client = globalForPrisma.prisma
+  if (!client) {
+    requireDatabaseUrl()
+    client = new PrismaClient({
+      log: process.env.NODE_ENV === 'production' ? ['error'] : ['query', 'error'],
+    })
+    if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = client
+  }
+  return client
+}
+
+/**
+ * دسترسی lazy به Prisma — کلاینت و گارد پیکربندی فقط با اولین دسترسی واقعی
+ * ساخته/اجرا می‌شوند تا build ورسل (جمع‌آوری داده صفحات) بدون متغیر محیطی هم سبز بماند.
+ */
+export const db: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const real = getDb()
+    const value: unknown = Reflect.get(real, prop, real)
+    return typeof value === 'function'
+      ? (value as (...args: unknown[]) => unknown).bind(real)
+      : value
+  },
+})
