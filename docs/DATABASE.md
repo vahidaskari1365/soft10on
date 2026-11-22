@@ -7,3 +7,9 @@
 - ستون‌های clinicId در schema اختیاری‌اند (سازگاری TS/پلتفرم) اما در DB برای ۲۸ مدل tenant-owned NOT NULL هستند؛ تزریق خودکار مانع null است و DB آخرین دفاع.
 - ممنوعیت‌ها: `db push --accept-data-loss`، `migrate reset` روی prod، حذف جدول، backfill تصادفی.
 - Backup: pg_dump روزانه Supabase؛ تست Restore در docs/BACKUP-RESTORE.md.
+
+## ثبت migrationهای فعلی روی production (پس از دسترسی)
+چون تغییرات نه‌گانهٔ این سه migration قبلاً روی prod اعمال و تأیید شده‌اند، فقط ثبت تاریخ لازم است (بدون اجرای مجدد):
+`prisma migrate resolve --applied 0_init`
+`prisma migrate resolve --applied 20261122000000_tenant_isolation`
+`prisma migrate resolve --applied 20261123000000_per_tenant_uniques`

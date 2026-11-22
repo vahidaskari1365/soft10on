@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import { assertTestDb, loadTestDbUrl } from './test-env.mjs'
+assertTestDb()
+const TEST_URL = loadTestDbUrl()
+
 /**
  * تست‌های امنیتی فاز ۱۲ — Session، Idempotency per-clinic، Rate Limit، IDOR مالی/اسناد
  * اجرا: node scripts/auth-security-tests.mjs [baseURL]
@@ -28,7 +32,7 @@ async function dbClient() {
     process.env.DATABASE_URL = fs.readFileSync(fs.existsSync('.env.local') ? '.env.local' : '.env', 'utf8').match(/^DATABASE_URL="?([^"\n]+)"?/m)[1].trim()
   }
   const { PrismaClient } = await import('@prisma/client')
-  const db = new PrismaClient()
+  const db = new PrismaClient({ log: [], datasources: { db: { url: TEST_URL } } })
   return db
 }
 

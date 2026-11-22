@@ -104,9 +104,13 @@ export const POST = tenantHandler()(async (session, request) => {
   const bodyTyped = body as { roomUnitId?: string; reason?: string; deposit?: number }
   const roomUnitId = bodyTyped.roomUnitId || null
   if (roomUnitId) {
-    const room = await db.roomUnit.findUnique({ where: { id: roomUnitId } })
+    // findFirst با scope خودکار — اتاق کلینیک دیگر قابل ارجاع نیست
+    const room = await db.roomUnit.findFirst({ where: { id: roomUnitId } })
     if (!room) return NextResponse.json({ error: 'اتاق یا یونیت یافت نشد' }, { status: 400 })
     if (!room.active) return NextResponse.json({ error: 'این اتاق غیرفعال است' }, { status: 400 })
+    if (doctorRec && room.branchId !== doctorRec.branchId) {
+      return NextResponse.json({ error: 'اتاق انتخابی متعلق به شعبهٔ پزشک نیست' }, { status: 400 })
+    }
     const endMs = startMs + Math.max(service.durationMin, 15) * 60_000
     const roomCands = await db.appointment.findMany({
       where: { roomUnitId, status: { in: ['REQUESTED', 'PENDING', 'CONFIRMED', 'ARRIVED', 'IN_VISIT', 'DONE'] }, start: { gte: new Date(startMs - 4 * 3_600_000), lt: new Date(endMs + 4 * 3_600_000) } },

@@ -40,9 +40,8 @@ async function main() {
   console.log(' seeding…')
 
   // wipe (ترتیب مهم: ابتدا جداول با رابطه)
-  await db.aiCall.deleteMany()
+  // سیاست دادهٔ Global: جداول پلتفرمی (AiCall/KnowledgeBase/LedgerAccount) هرگز توسط seed پاک نمی‌شوند
   await db.publicBooking.deleteMany()
-  await db.knowledgeBase.deleteMany()
   await db.waitlist.deleteMany()
   await db.message.deleteMany()
   await db.medicalRecord.deleteMany()
@@ -61,15 +60,19 @@ async function main() {
 }
 
 async function seedAll(): Promise<void> {
+  const { currentTenant } = await import('../src/lib/tenant-als')
+  const CLINIC_ID = currentTenant()!.clinicId
 await db.purchase.deleteMany()
   await db.product.deleteMany()
   await db.task.deleteMany()
   await db.appointment.deleteMany()
   await db.patient.deleteMany()
   await db.service.deleteMany()
-  await db.doctor.deleteMany()
+  // فقط پزشکان شعبه‌های این کلینیک — Doctor خودش clinicId ندارد
+  await db.doctor.deleteMany({ where: { branch: { clinicId: CLINIC_ID } } })
   await db.branch.deleteMany()
-  await db.systemMeta.deleteMany()
+  // فقط کلیدهای متعلق به این seed/کلینیک — SystemMeta جهانی است (شمارنده‌ها و rate-limit بقیه کلینیک‌ها)
+  await db.systemMeta.deleteMany({ where: { OR: [{ key: 'clinicName' }, { key: 'branches' }, { key: 'seededAt' }, { key: { startsWith: `journal_next:${CLINIC_ID}` } }, { key: { startsWith: `invoice_next:${CLINIC_ID}` } }] } })
 
   // ---------- کدینگ حساب‌ها (global — پیش‌نیاز اسناد مالی) ----------
   const chart: { code: string; name: string; type: string }[] = [

@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import { assertTestDb, loadTestDbUrl } from './test-env.mjs'
+assertTestDb()
+const TEST_URL = loadTestDbUrl()
+
 /**
  * تست‌های مالی، هم‌زمانی و انبار روی API واقعی — فاز ۹-۱۰ مأموریت
  * اجرا: node scripts/finance-tests.mjs [baseURL]
@@ -25,7 +29,7 @@ async function login(u, p) {
 }
 async function rawSql(sql) {
   const { PrismaClient } = await import('@prisma/client')
-  const db = new PrismaClient()
+  const db = new PrismaClient({ log: [], datasources: { db: { url: TEST_URL } } })
   const r = await db.$queryRawUnsafe(sql)
   await db.$disconnect()
   return r
@@ -48,7 +52,7 @@ async function setup() {
   const cA = await api('/api/clinics', { method: 'POST', cookie: mCookie, body: { name: `مالی A-${stamp}` } })
   const cB = await api('/api/clinics', { method: 'POST', cookie: mCookie, body: { name: `مالی B-${stamp}` } })
   const { PrismaClient } = await import('@prisma/client')
-  const db = new PrismaClient()
+  const db = new PrismaClient({ log: [], datasources: { db: { url: TEST_URL } } })
   const mk = async (clinicId, tag, pass) => {
     const { scryptSync } = await import('node:crypto')
     const salt = randomBytes(8).toString('hex')

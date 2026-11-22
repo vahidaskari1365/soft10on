@@ -57,9 +57,12 @@ export const POST = tenantHandler('DOCTOR', 'ADMIN')(async (session, request) =>
   if (!doctorId && session.role === 'ADMIN' && typeof body.doctorId === 'string') doctorId = body.doctorId
   if (!doctorId) return NextResponse.json({ error: 'پزشک صادرکننده مشخص نیست' }, { status: 400 })
 
+  // کلاینت tx خام است — مالکیت Tenant باید صریح تزریق شود (NOT NULL در DB)
+  if (!session.clinicId) return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
   const prescription = await db.$transaction(async (tx) => {
     return tx.prescription.create({
       data: {
+        clinicId: session.clinicId,
         patientId,
         doctorId,
         diagnosis: diagnosis.value || null,

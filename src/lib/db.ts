@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { PrismaClient } from '@prisma/client'
 import { cleanEnvValue } from './env-value'
-import { currentTenant } from './tenant-als'
+import { currentTenant, type TenantCtx } from './tenant-als'
 
 // ------------------------------------------------------------------
 // بوت‌استرپ دیتابیس برای استقرار سرورلس (Vercel و مشابه)
@@ -206,6 +206,40 @@ function getDb(): PrismaClient {
 
 type AnyFn = (...args: unknown[]) => unknown
 
+/** مدل‌های دارای مالکیت قابل کنترل در سطح سشن — برای findUnique/update/delete/upsert */
+const OWNERSHIP_SCOPED = new Set(['Doctor', 'User'])
+
+/** خطای «یافت نشد» سازگار با Prisma — مسیرها آن را به 404 نگاشت می‌کنند */
+function ownershipNotFound(model: string, where: unknown): Error {
+  const err = new Error(`No record found in ${model} within tenant scope for ${JSON.stringify(where)}`)
+  ;(err as unknown as { code: string }).code = 'P2025'
+  return err
+}
+
+/**
+ * افزودن همهٔ شرط‌های scope به where عملیات خواندن/به‌روزرسانی گروهی.
+ * ترتیب: clinicId (یا رابطهٔ Doctor) → شعبهٔ ستاد → مالکیت بیمار.
+ */
+function applyWhereScope(model: string, args: AnyArgs, ctx: TenantCtx): void {
+  if (TENANT_SCOPED.has(model)) andWhere(args, { clinicId: ctx.clinicId })
+  else if (model === 'Doctor') andWhere(args, { branch: { clinicId: ctx.clinicId } })
+  else if (model === 'User') andWhere(args, { clinicId: ctx.clinicId })
+  // محدودسازی شعبه‌ای برای نقش‌های ستاد (بیمار مستثنا — scoping او patientId است)
+  if (ctx.branchId && !ctx.patientId && BRANCH_SCOPED.has(model)) andWhere(args, { branchId: ctx.branchId })
+  if (ctx.role === 'PATIENT' && PATIENT_OWNED.has(model)) andWhere(args, { patientId: ctx.patientId })
+  if (ctx.role === 'PATIENT' && model === 'Patient') andWhere(args, { id: ctx.patientId })
+}
+
+/** آیا این مدل در این زمینه نیاز به کنترل مالکیت دارد؟ */
+function ownershipRelevant(model: string, ctx: TenantCtx): boolean {
+  return (
+    TENANT_SCOPED.has(model) ||
+    BRANCH_SCOPED.has(model) ||
+    OWNERSHIP_SCOPED.has(model) ||
+    (ctx.role === 'PATIENT' && (PATIENT_OWNED.has(model) || model === 'Patient'))
+  )
+}
+
 /** wrap متدهای یک delegate مدل با منطق Tenant */
 function scopedDelegate(model: string, delegate: object): object {
   return new Proxy(delegate, {
@@ -214,6 +248,57 @@ function scopedDelegate(model: string, delegate: object): object {
       if (typeof v !== 'function') return v
       const fn = v as AnyFn
       const m = String(method)
+
+      // ————— عملیات unique-where: مالکیت قبل از اعمال، در همان زمینهٔ سشن کنترل می‌شود
+      if (m === 'update' || m === 'delete' || m === 'upsert' || m === 'findUnique' || m === 'findUniqueOrThrow') {
+        return (...callArgs: unknown[]) => {
+          const ctx = currentTenant()
+          const first = (callArgs[0] ?? {}) as AnyArgs
+          if (!ctx || !ownershipRelevant(model, ctx)) return fn.apply(d, callArgs)
+
+          // findUnique → findFirst با scope (unique-where در Prisma قابل ترکیب با clinicId نیست)
+          if (m === 'findUnique' || m === 'findUniqueOrThrow') {
+            const mapped = m === 'findUnique' ? 'findFirst' : 'findFirstOrThrow'
+            const scopedFn = Reflect.get(d, mapped, d) as AnyFn
+            applyWhereScope(model, first, ctx)
+            callArgs[0] = first
+            return (scopedFn as unknown as (...a: unknown[]) => unknown).apply(d, callArgs)
+          }
+
+          // update/delete/upsert: ابتدا مالکیت با scope معتبر، سپس عملیات اصلی
+          const checkFn = Reflect.get(d, 'findFirst', d) as AnyFn
+          const checkArgs: AnyArgs = { where: first.where }
+          applyWhereScope(model, checkArgs, ctx)
+          void Promise.resolve(checkFn.apply(d, [checkArgs])).then((found) => {
+            if (!found) throw ownershipNotFound(model, first.where)
+          })
+          // mass-assignment: دادهٔ به‌روزرسانی حق تغییر مالکیت Tenant/Branch ندارد
+          const mutData = ((first as AnyArgs).update ?? (first as AnyArgs).data ?? {}) as AnyArgs
+          if (mutData && typeof mutData === 'object') {
+            if ('clinicId' in mutData && mutData.clinicId !== ctx.clinicId && TENANT_SCOPED.has(model)) throw new Error('TENANT_MISMATCH: clinicId با زمینهٔ سشن نمی‌خواند')
+            if (ctx.branchId && !ctx.patientId && BRANCH_SCOPED.has(model) && 'branchId' in mutData && mutData.branchId !== null && mutData.branchId !== ctx.branchId) throw new Error('BRANCH_MISMATCH: branchId با شعبهٔ مجاز سشن نمی‌خواند')
+          }
+          // update/delete: نبودِ رکورد در scope = P2025 — upsert: نبود = مسیر create تحت مالکیت
+          return Promise.resolve(checkFn.apply(d, [checkArgs])).then((found) => {
+            if (!found && m !== 'upsert') throw ownershipNotFound(model, first.where)
+            if (!found) {
+              // مسیر create این upsert باید تحت مالکیت درست ثبت شود
+              const create = (first.create ?? {}) as AnyArgs
+              if (TENANT_SCOPED.has(model) || model === 'User') {
+                if ('clinicId' in create && create.clinicId !== ctx.clinicId) throw new Error('TENANT_MISMATCH: clinicId با زمینهٔ سشن نمی‌خواند')
+                if (!('clinicId' in create)) create.clinicId = ctx.clinicId
+              }
+              if (ctx.branchId && !ctx.patientId && BRANCH_SCOPED.has(model)) {
+                if ('branchId' in create && create.branchId !== null && create.branchId !== ctx.branchId) throw new Error('BRANCH_MISMATCH: branchId با شعبهٔ مجاز سشن نمی‌خواند')
+                if (!('branchId' in create)) create.branchId = ctx.branchId
+              }
+              first.create = create
+            }
+            return (fn as unknown as (...a: unknown[]) => unknown).apply(d, callArgs)
+          })
+        }
+      }
+
       if (!SCOPED_METHODS.has(m)) return fn.bind(d)
       return (...callArgs: unknown[]) => {
         const ctx = currentTenant()
@@ -227,13 +312,9 @@ function scopedDelegate(model: string, delegate: object): object {
             if (TENANT_SCOPED.has(model) || model === 'User') injectClinicId(first, ctx.clinicId)
             // کاربر محدود به شعبه — بدون بیمار بودن — فقط در شعبهٔ خودش ثبت می‌کند
             if (ctx.branchId && !ctx.patientId && BRANCH_SCOPED.has(model)) injectBranchId(first, ctx.branchId)
-          } else if (TENANT_SCOPED.has(model)) andWhere(first, { clinicId: ctx.clinicId })
-          // Doctor ستون clinicId ندارد — scope با رابطهٔ شعبه
-          else if (model === 'Doctor') andWhere(first, { branch: { clinicId: ctx.clinicId } })
-          // محدودسازی شعبه‌ای برای نقش‌های ستاد (بیمار مستثنا — scoping او patientId است)
-          if (ctx.branchId && !ctx.patientId && BRANCH_SCOPED.has(model)) andWhere(first, { branchId: ctx.branchId })
-          if (ctx.role === 'PATIENT' && PATIENT_OWNED.has(model)) andWhere(first, { patientId: ctx.patientId })
-          if (ctx.role === 'PATIENT' && model === 'Patient') andWhere(first, { id: ctx.patientId })
+          } else {
+            applyWhereScope(model, first, ctx)
+          }
         }
         callArgs[0] = first
         return fn.apply(d, callArgs)

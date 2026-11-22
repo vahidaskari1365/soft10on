@@ -63,6 +63,9 @@ server.log
 /.zscripts/
 /scripts/*
 !/scripts/*.py
+!/scripts/*.mjs
+!/scripts/*.ts
 /agent-ctx/
 prisma/core
 .pgdata/
+.pgbackup/

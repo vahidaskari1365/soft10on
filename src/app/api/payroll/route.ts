@@ -143,7 +143,9 @@ export const POST = tenantHandler('ADMIN')(async (session, request) => {
       },
     })
       await tx.expense.create({
+        // کلاینت tx خام — مالکیت صریح (NOT NULL در DB)
         data: {
+          clinicId: session.clinicId,
           branchId: payroll.branchId,
           date: new Date(),
           category: 'SALARY',

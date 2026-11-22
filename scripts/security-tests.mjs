@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import { assertTestDb, loadTestDbUrl } from './test-env.mjs'
+assertTestDb()
+const TEST_URL = loadTestDbUrl()
+
 /**
  * تست‌های امنیتی واقعی روی API زنده — Multi-Tenant Matrix + RBAC + IDOR
  * اجرا: node scripts/security-tests.mjs [baseURL]
@@ -50,7 +54,7 @@ async function setup() {
     process.env.DATABASE_URL = line[1].trim()
   }
   const { PrismaClient } = await import('@prisma/client')
-  const db = new PrismaClient()
+  const db = new PrismaClient({ log: [], datasources: { db: { url: TEST_URL } } })
   const uA = await db.user.create({ data: { username: `ta${stamp}`, password: hash(passA), fullName: 'مدیر A', role: 'ADMIN', clinicId: cA.data.clinic.id, active: true } })
   const uB = await db.user.create({ data: { username: `tb${stamp}`, password: hash(passB), fullName: 'مدیر B', role: 'ADMIN', clinicId: cB.data.clinic.id, active: true } })
   const pA = await db.patient.create({ data: { firstName: 'بیمار', lastName: 'کلینیک‌A', phone: '09120000001', clinicId: cA.data.clinic.id } })

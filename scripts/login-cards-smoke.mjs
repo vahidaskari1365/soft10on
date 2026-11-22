@@ -1,5 +1,9 @@
 // E2E Smoke: کلیک روی هر کارت دمو در صفحه لاگین و اطمینان از ورود نقش
-import { chromium } from '/home/z/.npm-global/lib/node_modules/playwright/index.mjs'
+import { chromium } from 'playwright'
+import { assertTestDb, loadTestDbUrl } from './test-env.mjs'
+assertTestDb()
+const TEST_URL = loadTestDbUrl()
+
 
 const accounts = ['مدیر کل', 'دکتر', 'منشی پذیرش', 'منشی ولیعصر', 'بیمار']
 const results = []
