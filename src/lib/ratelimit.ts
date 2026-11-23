@@ -10,9 +10,9 @@ import { db } from '@/lib/db'
  *   دیتابیس خود وابستگی اصلی برنامه است؛ خطای آن به هر حال درخواست‌ها را شکست می‌دهد.
  */
 
-type LimitResult = { ok: boolean; retryAfterSec: number }
+type LimitResult = { ok: boolean; retryAfterSec: number; storeError?: boolean }
 
-const FAIL_CLOSED: LimitResult = { ok: false, retryAfterSec: 5 }
+const FAIL_CLOSED: LimitResult = { ok: false, retryAfterSec: 5, storeError: true }
 
 /** استخراج IP کلاینت از هدرهای پلتفرم (در Vercel: x-forwarded-for توسط پلتفرم تنظیم می‌شود) */
 export function clientIp(request: Request): string {

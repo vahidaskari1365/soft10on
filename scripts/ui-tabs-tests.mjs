@@ -25,11 +25,22 @@ for (const label of accounts) {
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 } })
   const page = await ctx.newPage()
   try {
-    await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 })
+    await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 60000 })
     const card = page.locator(`button[aria-label="ورود سریع به عنوان ${label}"]`)
     await card.waitFor({ timeout: 30000 })
+// کلیک تا تکمیل ورود — کلیک ممکن است پیش از اتصال hydration بی‌اثر شود؛ تلاش دوباره تا محو شدن صفحهٔ لاگین
+async function clickUntilLoggedIn(page, card) {
+  const h2 = page.locator('h2:has-text("ورود به سامانه 10on")')
+  for (let i = 0; i < 8; i++) {
     await card.click()
-    await page.locator('h2:has-text("ورود به سامانه 10on")').waitFor({ state: 'detached', timeout: 45000 })
+    try {
+      await h2.waitFor({ state: 'detached', timeout: 4000 })
+      return
+    } catch { /* قبل از hydration — تلاش دوباره */ }
+  }
+  await h2.waitFor({ state: 'detached', timeout: 30000 })
+}
+    await clickUntilLoggedIn(page, card)
     await page.waitForTimeout(1200)
 
     // پیمایش واقعی تب‌ها: اپ به‌صورت SPA است — دکمه‌های نوار کنار کلیک می‌شوند

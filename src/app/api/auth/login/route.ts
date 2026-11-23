@@ -74,6 +74,13 @@ export async function POST(request: Request) {
   // دو لایه محدودیت: سقف IP (تحمل NAT دفتری) + سقف هر نام‌کاربری (دفاع brute-force هدفمند)
   const rlIp = await rateLimit(`login:ip:${ip}`, 60, 60_000)
   if (!rlIp.ok) {
+    if (rlIp.storeError) {
+      // محدودساز DB-backup است؛ خطای store یعنی DB قطع — پیام 429 گمراه‌کننده است
+      return NextResponse.json(
+        { error: 'دیتابیس در دسترس نیست — با کلیدهای نمایشی می‌توانید بدون دیتابیس وارد شوید', dbDown: true },
+        { status: 503 },
+      )
+    }
     await logAudit({ action: 'LOGIN', entity: 'User', result: 'DENIED', ip, meta: { reason: 'rate_limited' } })
     return NextResponse.json({ error: `تلاش‌های زیادی انجام شده؛ ${rlIp.retryAfterSec} ثانیه دیگر تلاش کنید` }, { status: 429 })
   }
@@ -95,6 +102,12 @@ export async function POST(request: Request) {
     // سقف per-user فقط تلاش ناموفق را می‌شمارد — لاگین موفق سهمیه را مصرف نمی‌کند
     const rlFail = await rateLimit(`loginfail:${uname.slice(0, 40)}`, 5, 60_000)
     if (!rlFail.ok) {
+      if (rlFail.storeError) {
+        return NextResponse.json(
+          { error: 'دیتابیس در دسترس نیست — با کلیدهای نمایشی می‌توانید بدون دیتابیس وارد شوید', dbDown: true },
+          { status: 503 },
+        )
+      }
       await logAudit({ action: 'LOGIN', entity: 'User', result: 'DENIED', ip, meta: { reason: 'user_rate_limited', username: uname.slice(0, 40) } })
       return NextResponse.json({ error: `تلاش‌های ناموفق زیادی برای این حساب؛ ${rlFail.retryAfterSec} ثانیه دیگر تلاش کنید` }, { status: 429 })
     }

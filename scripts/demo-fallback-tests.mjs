@@ -70,6 +70,11 @@ record('fallback با رمز اشتباه → 401', wrong.status === 401, `statu
 const wrongReal = await login('manager', 'wrong-pass')
 record('کاربر واقعی با رمز اشتباه → 401', wrongReal.status === 401, `status=${wrongReal.status}`)
 
+// ————— ۵) کلیدها همیشه در HTML صفحهٔ لاگین هستند (بدون gate محیطی — در production هم دیده می‌شوند)
+const page = await (await fetch(`${BASE}/`)).text()
+const missing = ['دکتر مدیر', 'دکتر', 'اپراتور', 'بیمار', 'منشی ولیعصر'].filter((k) => !page.includes(k))
+record('کلیدهای ورود سریع در SSR صفحهٔ لاگین هستند', missing.length === 0, missing.length ? 'مفقود: ' + missing.join(', ') : 'هر ۵ کلید')
+
 const fails = results.filter((r) => !r.pass).length
 console.log(`\n=== ${results.length - fails}/${results.length} PASS ===`)
 process.exit(fails ? 1 : 0)

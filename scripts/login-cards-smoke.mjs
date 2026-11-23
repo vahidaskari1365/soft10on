@@ -9,16 +9,27 @@ const accounts = ['دکتر مدیر', 'دکتر', 'اپراتور', 'بیمار
 const results = []
 const browser = await chromium.launch()
 
+// کلیک تا تکمیل ورود — کلیک ممکن است پیش از اتصال hydration بی‌اثر شود؛ تلاش دوباره تا محو شدن صفحهٔ لاگین
+async function clickUntilLoggedIn(page, card) {
+  const h2 = page.locator('h2:has-text("ورود به سامانه 10on")')
+  for (let i = 0; i < 8; i++) {
+    await card.click()
+    try {
+      await h2.waitFor({ state: 'detached', timeout: 4000 })
+      return
+    } catch { /* قبل از hydration — تلاش دوباره */ }
+  }
+  await h2.waitFor({ state: 'detached', timeout: 30000 })
+}
 for (const label of accounts) {
   const ctx = await browser.newContext()
   const page = await ctx.newPage()
   try {
-    await page.goto('http://localhost:3000', { waitUntil: 'networkidle', timeout: 60000 })
+    await page.goto('http://localhost:3000', { waitUntil: 'domcontentloaded', timeout: 60000 })
     const card = page.locator(`button[aria-label="ورود سریع به عنوان ${label}"]`)
     await card.waitFor({ timeout: 30000 })
-    await card.click()
     // ورود موفق = صفحه لاگین محو می‌شود
-    await page.locator('h2:has-text("ورود به سامانه 10on")').waitFor({ state: 'detached', timeout: 45000 })
+    await clickUntilLoggedIn(page, card)
     await page.waitForTimeout(1500)
     // فقط پیام خطای واقعی — هشدارهای قرمز داشبورد (مثل «کار عقب‌افتاده») خطا نیستند
     const errTexts = await page.locator('.bg-red-50').allInnerTexts()

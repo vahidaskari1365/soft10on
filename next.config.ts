@@ -27,6 +27,11 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/**/*": ["./db/seed.db"],
   },
+  // پوشه‌های دادهٔ runtime (embedded-postgres فعال در حال نوشتن) داخل trace باندل نمی‌روند —
+  // کپی آن‌ها هنگام build با ENOENT شکست می‌خورد و shipping دادهٔ زنده هم غلط است
+  outputFileTracingExcludes: {
+    "*": [".pgdata/**", ".pgbackup/**"],
+  },
 };
 
 export default nextConfig;

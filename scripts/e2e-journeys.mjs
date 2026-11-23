@@ -21,22 +21,46 @@ const browser = await chromium.launch()
 
 // ---------- helpers ----------
 async function login(page, username, password, expectError = false) {
-  await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 })
-  await page.locator('#username').fill(username)
-  await page.locator('#password').fill(password)
-  await page.locator('button[type="submit"]:has-text("ورود")').click()
+  await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  const h2 = page.locator('h2:has-text("ورود به سامانه 10on")')
+  const submit = page.locator('button[type="submit"]:has-text("ورود")')
+  // کلیک/submit ممکن است پیش از اتصال hydration بی‌اثر شود — تا نتیجه تلاش می‌کنیم
+  for (let i = 0; i < 8; i++) {
+    await page.locator('#username').fill(username)
+    await page.locator('#password').fill(password)
+    await submit.click()
+    try {
+      if (expectError) {
+        await page.locator('text=/اشتباه|نامعتبر|خطا/').first().waitFor({ state: 'visible', timeout: 4000 })
+        return true
+      }
+      await h2.waitFor({ state: 'detached', timeout: 4000 })
+      await page.waitForTimeout(1000)
+      return
+    } catch { /* تلاش دوباره */ }
+  }
   if (expectError) {
     await page.waitForTimeout(1800)
-    const err = await page.locator('text=/اشتباه|نامعتبر|خطا/').first().isVisible().catch(() => false)
-    return err
+    return await page.locator('text=/اشتباه|نامعتبر|خطا/').first().isVisible().catch(() => false)
   }
-  await page.locator('h2:has-text("ورود به سامانه 10on")').waitFor({ state: 'detached', timeout: 30000 })
+  await h2.waitFor({ state: 'detached', timeout: 30000 })
   await page.waitForTimeout(1000)
 }
 async function loginDemo(page, label) {
-  await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 })
-  await page.locator(`button[aria-label="ورود سریع به عنوان ${label}"]`).click()
-  await page.locator('h2:has-text("ورود به سامانه 10on")').waitFor({ state: 'detached', timeout: 30000 })
+  await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 60000 })
+// کلیک تا تکمیل ورود — کلیک ممکن است پیش از اتصال hydration بی‌اثر شود؛ تلاش دوباره تا محو شدن صفحهٔ لاگین
+async function clickUntilLoggedIn(page, card) {
+  const h2 = page.locator('h2:has-text("ورود به سامانه 10on")')
+  for (let i = 0; i < 8; i++) {
+    await card.click()
+    try {
+      await h2.waitFor({ state: 'detached', timeout: 4000 })
+      return
+    } catch { /* قبل از hydration — تلاش دوباره */ }
+  }
+  await h2.waitFor({ state: 'detached', timeout: 30000 })
+}
+  await clickUntilLoggedIn(page, page.locator(`button[aria-label="ورود سریع به عنوان ${label}"]`))
   await page.waitForTimeout(1000)
 }
 async function logout(page) {
@@ -320,7 +344,7 @@ await journey('J7 پرتال بیمار: لغو نوبت، ویرایش پروف
     const br = await db.branch.findFirst({ where: { clinicId: pat.clinicId } })
     if (svc && doc && br) {
       await db.appointment.create({ data: { patientId: pat.id, doctorId: doc.id, serviceId: svc.id, branchId: br.id, clinicId: pat.clinicId, start: new Date(Date.now() + 3 * 86400000), status: 'PENDING', price: svc.price, source: 'PANEL' } })
-      await page.reload({ waitUntil: 'networkidle' })
+      await page.reload({ waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(1500)
     }
   }
@@ -469,11 +493,19 @@ await journey('J11 SUPER_ADMIN: ساخت کلینیک از پنل پلتفرم',
 await journey('J12 ریسپانسیو: 375/768/1366 بدون سرریز افقی', async (page) => {
   for (const [w, h, label] of [[375, 812, 'موبایل'], [768, 1024, 'تبلت'], [1366, 900, 'دسکتاپ']]) {
     await page.setViewportSize({ width: w, height: h })
-    await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 })
-    await page.locator('#username').fill('admin')
-    await page.locator('#password').fill('123456')
-    await page.locator('button[type="submit"]:has-text("ورود")').click()
-    await page.locator('h2:has-text("ورود به سامانه 10on")').waitFor({ state: 'detached', timeout: 30000 })
+    await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 60000 })
+    // لاگین فرم با تلاش دوباره — کلیک ممکن است پیش از اتصال hydration بی‌اثر شود
+    const h2j = page.locator('h2:has-text("ورود به سامانه 10on")')
+    for (let i = 0; i < 8; i++) {
+      await page.locator('#username').fill('admin')
+      await page.locator('#password').fill('123456')
+      await page.locator('button[type="submit"]:has-text("ورود")').click()
+      try {
+        await h2j.waitFor({ state: 'detached', timeout: 4000 })
+        break
+      } catch { /* تلاش دوباره */ }
+    }
+    await h2j.waitFor({ state: 'detached', timeout: 30000 })
     await page.waitForTimeout(1200)
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     assert(overflow <= 2, `${label} ${w}px سرریز افقی ${overflow}px`)
@@ -489,7 +521,7 @@ await journey('J12 ریسپانسیو: 375/768/1366 بدون سرریز افقی
 await journey('J13 صفحهٔ عمومی کلینیک: فرم رزرو کار می‌کند', async (page) => {
   const br = await db.branch.findFirst({ where: { code: 'SAADAT' } })
   assert(!!br, 'شعبهٔ اصلی یافت نشد')
-  await page.goto(`${BASE}/clinic/${br.code}`, { waitUntil: 'networkidle', timeout: 60000 })
+  await page.goto(`${BASE}/clinic/${br.code}`, { waitUntil: 'domcontentloaded', timeout: 60000 })
   await page.waitForTimeout(1500)
   const body = await page.locator('body').innerText()
   assert(/[؀-ۿ]/.test(body), 'صفحهٔ عمومی فارسی نیست')

@@ -5,7 +5,8 @@ import type { SessionUser } from './auth'
  * هدف: کلیدهای «ورود سریع» صفحهٔ لاگین حتی وقتی دیتابیس قطع است یا seed نشده
  * کار کنند تا کل نرم‌افزار قابل مرور باشد (بدون خطای ورود).
  * قواعد:
- * - فقط در حالت دمو/توسعه فعال است (isDemoAuthEnabled) — در production واقعی مسیر بسته است.
+ * - به‌صورت پیش‌فرض در همهٔ محیط‌ها فعال است (isDemoAuthEnabled) — در production هم
+ *   کلیدهای نمایشی باید کار کنند؛ برای استقرار واقعی: TENON_DISABLE_DEMO_LOGIN=1
  * - اگر DB در دسترس و کاربر واقعی هم‌نام موجود باشد، نشست واقعی ترجیح داده می‌شود
  *   (تجربهٔ کامل با داده‌های واقعی)؛ نشست ایستا فقط fallback است.
  * - رمز دمو همان رمز حساب‌های نمایشی صفحهٔ لاگین است و محدودساز نرخ حافظه‌ای دارد.
@@ -25,9 +26,14 @@ export const DEMO_USERS: Record<string, DemoDef> = {
   operator: { role: 'RECEPTIONIST', fullName: 'اپراتور پذیرش' },
 }
 
-/** دمو فقط خارج از production واقعی، یا وقتی صریحاً DEMO_MODE=1 است */
+/**
+ * مسیر دمو به‌صورت پیش‌فرض در همهٔ محیط‌ها فعال است — دلیل: در استقرار production با
+ * دیتابیس قطع، کلیدهای صفحهٔ لاگین بدون این مسیر به محدودساز DB-backup (fail-closed)
+ * می‌خوردند و پیام گمراه‌کنندهٔ «تلاش‌های زیادی انجام شده؛ 5 ثانیه دیگر» می‌دادند.
+ * برای استقرار واقعی (بدون حساب‌های نمایشی): TENON_DISABLE_DEMO_LOGIN=1
+ */
 export function isDemoAuthEnabled(): boolean {
-  return process.env.DEMO_MODE === '1' || process.env.NODE_ENV !== 'production'
+  return process.env.TENON_DISABLE_DEMO_LOGIN !== '1'
 }
 
 export function demoUserId(username: string): string {
