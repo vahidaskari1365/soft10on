@@ -5,7 +5,7 @@ assertTestDb()
 const TEST_URL = loadTestDbUrl()
 
 
-const accounts = ['مدیر کل', 'دکتر', 'منشی پذیرش', 'منشی ولیعصر', 'بیمار']
+const accounts = ['دکتر مدیر', 'دکتر', 'اپراتور', 'بیمار', 'منشی ولیعصر']
 const results = []
 const browser = await chromium.launch()
 

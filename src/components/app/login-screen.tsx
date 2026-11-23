@@ -5,15 +5,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ShieldCheck, Stethoscope, Headset, UserRound, Loader2, Bot, MapPin, LineChart, HeartPulse } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import type { SessionUser } from './types'
 
-const DEMO: { username: string; role: string; label: string; icon: typeof ShieldCheck; color: string; desc: string }[] = [
-  { username: 'manager', role: 'ADMIN', label: 'مدیر کل', icon: ShieldCheck, color: '#0284C7', desc: 'داشبورد، شعب، پرسنل، مالی' },
-  { username: 'doctor', role: 'DOCTOR', label: 'دکتر', icon: Stethoscope, color: '#0D9488', desc: 'برنامه من، بیماران، کارنامه' },
-  { username: 'reception', role: 'RECEPTIONIST', label: 'منشی پذیرش', icon: Headset, color: '#38BDF8', desc: 'نوبت‌ها، کارتابل، دستیار' },
-  { username: 'reception2', role: 'RECEPTIONIST', label: 'منشی ولیعصر', icon: Headset, color: '#D97706', desc: 'شعبه ولیعصر، نوبت‌ها، کارتابل' },
-  { username: 'patient', role: 'PATIENT', label: 'بیمار', icon: UserRound, color: '#B08D57', desc: 'پرتال من، رزرو با شینا' },
+const DEMO: { username: string; label: string; icon: typeof ShieldCheck; color: string; desc: string }[] = [
+  { username: 'manager', label: 'دکتر مدیر', icon: ShieldCheck, color: '#0284C7', desc: 'مدیریت کلینیک، شعب، پرسنل، مالی' },
+  { username: 'doctor', label: 'دکتر', icon: Stethoscope, color: '#0D9488', desc: 'برنامه من، بیماران، کارنامه' },
+  { username: 'reception', label: 'اپراتور', icon: Headset, color: '#38BDF8', desc: 'نوبت‌ها، کارتابل، دستیار' },
+  { username: 'patient', label: 'بیمار', icon: UserRound, color: '#B08D57', desc: 'پرتال من، رزرو با شینا' },
+]
+const DEMO_EXTRA: { username: string; label: string; icon: typeof ShieldCheck; color: string; desc: string }[] = [
+  { username: 'reception2', label: 'منشی ولیعصر', icon: Headset, color: '#D97706', desc: 'شعبه ولیعصر، نوبت‌ها، کارتابل' },
 ]
 
 export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void }) {
@@ -145,7 +146,7 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
             <>
             <div className="flex items-center gap-3 my-6">
               <div className="h-px flex-1 bg-border" />
-              <span className="text-[11px] text-muted-foreground">حساب‌های نمایشی (رمز همه: ۱۲۳۴۵۶)</span>
+              <span className="text-[11px] text-muted-foreground">کلیدهای ورود سریع — حتی بدون دیتابیس (رمز همه: ۱۲۳۴۵۶)</span>
               <div className="h-px flex-1 bg-border" />
             </div>
 
@@ -162,11 +163,7 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
                     }}
                     disabled={loading !== null}
                     aria-label={`ورود سریع به عنوان ${d.label}`}
-                    className={cn(
-                      'group text-right rounded-2xl border bg-background p-3.5 transition-all card-hover outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-60',
-                      'border-border hover:border-sky-200',
-                      d.username === 'patient' && 'col-span-2'
-                    )}
+                    className="group text-right rounded-2xl border bg-background p-3.5 transition-all card-hover outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-60 border-border hover:border-sky-200"
                   >
                     <div className="flex items-center justify-between">
                       <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: d.color }}>
@@ -178,6 +175,33 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
                     <div className="text-[11px] text-muted-foreground mt-0.5">{d.desc}</div>
                     <div className="text-[10px] text-muted-foreground/70 mt-1" dir="ltr">
                       {d.username} / 123456
+                    </div>
+                  </button>
+                )
+              })}
+              {DEMO_EXTRA.map((d) => {
+                const Icon = d.icon
+                return (
+                  <button
+                    key={d.username}
+                    onClick={() => {
+                      setUsername(d.username)
+                      setPassword('123456')
+                      login(d.username, '123456', d.username)
+                    }}
+                    disabled={loading !== null}
+                    aria-label={`ورود سریع به عنوان ${d.label}`}
+                    className="col-span-2 group text-right rounded-2xl border bg-background p-3 transition-all card-hover outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-60 border-border hover:border-sky-200"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: d.color }}>
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="text-left">
+                        <span className="text-sm font-bold">{d.label}</span>
+                        <span className="text-[11px] text-muted-foreground mr-2">{d.desc}</span>
+                      </div>
+                      {loading === d.username ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
                     </div>
                   </button>
                 )

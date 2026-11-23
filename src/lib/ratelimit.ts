@@ -71,3 +71,29 @@ export async function rateLimit(
     return FAIL_CLOSED
   }
 }
+
+/**
+ * محدودساز نرخ درون‌حافظه‌ای (per-instance) — برای مسیر ورود نمایشی.
+ * مسیر دمو باید وقتی DB قطع است هم کار کند؛ پس نمی‌تواند به Store دیتابیسی
+ * تکیه کند (fail-closed). سقف متحافظه‌تر از مسیر عادی و فقط ضد سوءاستخدام شدید.
+ */
+const memBuckets = new Map<string, { ws: number; count: number }>()
+
+export function memoryRateLimit(key: string, limit: number, windowMs: number): LimitResult {
+  const now = Date.now()
+  const ws = Math.floor(now / windowMs)
+  const b = memBuckets.get(key)
+  if (!b || b.ws !== ws) {
+    memBuckets.set(key, { ws, count: 1 })
+    // جلوگیری از رشد بی‌حد نقشه
+    if (memBuckets.size > 10_000) {
+      for (const [k, v] of memBuckets) if (v.ws < ws - 1) memBuckets.delete(k)
+    }
+    return { ok: true, retryAfterSec: 0 }
+  }
+  b.count += 1
+  if (b.count > limit) {
+    return { ok: false, retryAfterSec: Math.max(1, Math.ceil((windowMs - (now % windowMs)) / 1000)) }
+  }
+  return { ok: true, retryAfterSec: 0 }
+}

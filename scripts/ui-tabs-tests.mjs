@@ -10,7 +10,7 @@ assertTestDb()
 import { chromium } from 'playwright'
 
 const BASE = 'http://localhost:3000'
-const accounts = ['مدیر کل', 'دکتر', 'منشی پذیرش', 'منشی ولیعصر', 'بیمار']
+const accounts = ['دکتر مدیر', 'دکتر', 'اپراتور', 'منشی ولیعصر', 'بیمار']
 const results = []
 const record = (name, pass, detail = '') => {
   results.push({ name, pass })
@@ -58,7 +58,7 @@ for (const label of accounts) {
     record(`UI ${label}: RTL و فارسی`, rtl === 'rtl' && /[\u0600-\u06FF]/.test(fa), `dir=${rtl}`)
 
     // تعامل واقعی فرم — فقط منشی: ثبت بیمار از UI و تأیید در DB
-    if (label === 'منشی پذیرش') {
+    if (label === 'اپراتور') {
       const marker = `UIبیمار${Date.now() % 1000000}`
       // دکمهٔ بیمار جدید را پیدا کن (متن رایج) و فرم را پر کن
       // رفتن به تب بیماران (CRM) سپس باز کردن دیالوگ «بیمار جدید»

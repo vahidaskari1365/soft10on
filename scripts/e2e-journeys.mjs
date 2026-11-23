@@ -83,7 +83,7 @@ await journey('J1a رمز غلط رد می‌شود', async (page) => {
   assert(stillLogin, 'با رمز غلط وارد داشبورد شد!')
 })
 await journey('J1b ورود/خروج همهٔ نقش‌های دمو', async (page) => {
-  for (const label of ['مدیر کل', 'منشی پذیرش', 'منشی ولیعصر', 'دکتر', 'بیمار']) {
+  for (const label of ['دکتر مدیر', 'اپراتور', 'منشی ولیعصر', 'دکتر', 'بیمار']) {
     await loginDemo(page, label)
     await logout(page)
   }
@@ -539,7 +539,7 @@ await journey('J14 PATIENT: منوی مدیریتی ندارد و API مدیری
 
 // ---------- J15: ماژول‌های باقی‌مانده — پایگاه دانش (عملیات واقعی)، گزارش‌ها، انبار، پرونده هوشمند ----------
 await journey('J15 تنظیمات: افزودن/حذف پایگاه دانش از UI با تأیید DB', async (page) => {
-  await loginDemo(page, 'مدیر کل')
+  await loginDemo(page, 'دکتر مدیر')
   await openSection(page, 'تنظیمات سامانه')
   await page.locator('[role="tab"]:has-text("پایگاه دانش")').click()
   await page.waitForTimeout(700)
@@ -562,7 +562,7 @@ await journey('J15 تنظیمات: افزودن/حذف پایگاه دانش ا�
   await logout(page)
 })
 await journey('J15b گزارش‌ها: تب نوبت‌ها و انبار با دادهٔ واقعی + پرونده هوشمند', async (page) => {
-  await loginDemo(page, 'مدیر کل')
+  await loginDemo(page, 'دکتر مدیر')
   await openSection(page, 'گزارش‌ها')
   await page.locator('[role="tab"]:has-text("نوبت‌ها")').click()
   await page.waitForTimeout(1000)

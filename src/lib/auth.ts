@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from 'crypto'
 import { db } from '@/lib/db'
 import { cleanEnvValue } from '@/lib/env-value'
 import { tenantCtxFromUser } from './tenant-als'
+import { demoUserId, isDemoAuthEnabled, staticDemoSessionUser } from './demo-users'
 
 const COOKIE = 'sina_session'
 const MAX_AGE = 60 * 60 * 24 * 30 // ۳۰ روز
@@ -126,6 +127,34 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     if (!token) return null
     const parsed = parseToken(token)
     if (!parsed) return null
+    // ————— نشست نمایشی (demo-): کاربر واقعی هم‌نام ترجیح دارد؛ در قطعی DB کاربر ایستا
+    if (parsed.userId.startsWith('demo-')) {
+      const uname = parsed.userId.slice(5)
+      try {
+        const real = await db.user.findUnique({
+          where: { username: uname },
+          include: { branch: true, doctor: true, patient: true, clinic: true },
+        })
+        if (real && real.active) {
+          const clinicId = real.clinicId ?? real.branch?.clinicId ?? null
+          tenantCtxFromUser({
+            id: real.id,
+            role: real.role,
+            clinicId,
+            branchId: real.branchId,
+            patientId: real.patientId,
+          })
+          return toSessionUser(real)
+        }
+      } catch {
+        /* DB در دسترس نیست — ادامه با کاربر ایستا */
+      }
+      if (!isDemoAuthEnabled()) return null
+      const su = staticDemoSessionUser(uname)
+      if (!su) return null
+      tenantCtxFromUser({ id: su.id, role: su.role, clinicId: null, branchId: null, patientId: null })
+      return su
+    }
     const user = await db.user.findUnique({
       where: { id: parsed.userId },
       include: { branch: true, doctor: true, patient: true, clinic: true },
@@ -153,6 +182,22 @@ export async function setSessionCookie(userId: string) {
   const store = await cookies()
   const user = await db.user.findUnique({ where: { id: userId }, select: { tokenVersion: true } })
   store.set(COOKIE, makeToken(userId, user?.tokenVersion ?? 1), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProduction,
+    path: '/',
+    maxAge: MAX_AGE,
+  })
+}
+
+/**
+ * نشست نمایشی بدون دیتابیس — userId با پیشوند demo- قابل تشخیص است و
+ * getSessionUser برای آن کاربر ایستای ایستا را برمی‌گرداند (بدون کوئری الزامی).
+ */
+export async function setDemoSessionCookie(username: string) {
+  const store = await cookies()
+  const payload = `${demoUserId(username)}.1.${Date.now()}`
+  store.set(COOKIE, `${payload}.${sign(payload)}`, {
     httpOnly: true,
     sameSite: 'lax',
     secure: isProduction,
