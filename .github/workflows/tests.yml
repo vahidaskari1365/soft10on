@@ -18,7 +18,7 @@ jobs:
           POSTGRES_DB: tenon_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U tenon" --health-interval 5s --health-timeout 5s --health-retries 20
+          --health-cmd "pg_isready -U tenon -d tenon_test" --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       DATABASE_URL: postgresql://tenon:tenon-ci@localhost:5432/tenon_test
       AUTH_SECRET: ci-secret-0123456789abcdefghij0123456789
@@ -35,14 +35,25 @@ jobs:
       - run: bun run lint
       - run: bunx prisma migrate deploy
       - run: bun run build
+      - name: Seed demo data (idempotent — suiteهای حساب‌های دمو به آن وابسته‌اند)
+        run: bun run db:seed
       - name: Start dev server
+        # اسکریپت dev خودش «next dev -p 3000» است؛ آرگومان اضافی به tee می‌رسید و شکست می‌خورد.
+        # پس بدون آرگومان، در پس‌زمینه، با لاگ واقعی dev.log در صورت شکست.
         run: |
-          bun run dev --port 3000 &
-          for i in $(seq 1 60); do
-            curl -sf http://localhost:3000/api/health && break
+          bun run dev > /dev/null 2>&1 &
+          SERVER_UP=0
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:3000/api/health | grep -q '"db":"up"'; then SERVER_UP=1; break; fi
             sleep 2
           done
-          curl -sf http://localhost:3000/api/health || (echo "server failed to start" && exit 1)
+          if [ "$SERVER_UP" != "1" ]; then
+            echo "::error::dev server در ۱۸۰ ثانیه سالم نشد — ۱۲۰ خط آخر dev.log:"
+            tail -n 120 dev.log || true
+            exit 1
+          fi
+          echo "dev server healthy:"
+          curl -s http://localhost:3000/api/health
       - name: Full test suite (unit + branch + isolation + security + finance + auth + seed + workflows + UI)
         run: bun run test:all
       - name: Backup/restore proof
