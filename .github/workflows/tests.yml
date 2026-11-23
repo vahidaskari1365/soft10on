@@ -37,6 +37,8 @@ jobs:
       - run: bun run build
       - name: Seed demo data (idempotent — suiteهای حساب‌های دمو به آن وابسته‌اند)
         run: bun run db:seed
+      - name: Host-env proof — سرور production بدون DATABASE_URL/AUTH_SECRET هم کلیدهای ورود سریع را دارد
+        run: bun run test:host-env
       - name: Start dev server
         # اسکریپت dev خودش «next dev -p 3000» است؛ آرگومان اضافی به tee می‌رسید و شکست می‌خورد.
         # پس بدون آرگومان، در پس‌زمینه، با لاگ واقعی dev.log در صورت شکست.

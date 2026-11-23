@@ -25,7 +25,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
   // گنجاندن دیتابیس بذر داخل باندل توابع سرورلس (fallback توسعه)
   outputFileTracingIncludes: {
-    "/api/**/*": ["./db/seed.db"],
+    // در همهٔ مسیرها (API و SSR) — بوت‌استرپ SQLite در هر نقطه‌ای که db لمس شود باید بذر را پیدا کند
+    "*": ["./db/seed.db"],
   },
   // پوشه‌های دادهٔ runtime (embedded-postgres فعال در حال نوشتن) داخل trace باندل نمی‌روند —
   // کپی آن‌ها هنگام build با ENOENT شکست می‌خورد و shipping دادهٔ زنده هم غلط است

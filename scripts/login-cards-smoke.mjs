@@ -31,10 +31,22 @@ for (const label of accounts) {
     // ورود موفق = صفحه لاگین محو می‌شود
     await clickUntilLoggedIn(page, card)
     await page.waitForTimeout(1500)
+    // خواندن متن‌ها با تحمل ناوبری/ری‌رندر سنگین dev — شرط قبولی تغییر نمی‌کند، فقط دوباره‌خوانی
+    async function readTexts(selector) {
+      for (let i = 0; i < 4; i++) {
+        try {
+          return await page.locator(selector).allInnerTexts()
+        } catch (e) {
+          if (i === 3) throw e
+          await page.waitForTimeout(1200)
+        }
+      }
+      return []
+    }
     // فقط پیام خطای واقعی — هشدارهای قرمز داشبورد (مثل «کار عقب‌افتاده») خطا نیستند
-    const errTexts = await page.locator('.bg-red-50').allInnerTexts()
+    const errTexts = await readTexts('.bg-red-50')
     const err = errTexts.filter((t) => /خطا|مجاز نیست|شکست|نامعتبر|اشتباه/.test(t)).length
-    const body = (await page.locator('body').innerText()).slice(0, 110).replace(/\s+/g, ' ')
+    const body = (await readTexts('body').then((t) => t.join('\n'))).slice(0, 110).replace(/\s+/g, ' ')
     results.push({ label, ok: err === 0, sample: body })
   } catch (e) {
     results.push({ label, ok: false, sample: String(e).slice(0, 130) })

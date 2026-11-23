@@ -3,6 +3,7 @@ import path from 'path'
 import { PrismaClient } from '@prisma/client'
 import { cleanEnvValue } from './env-value'
 import { currentTenant, type TenantCtx } from './tenant-als'
+import { isDemoAuthEnabled } from './demo-users'
 
 // ------------------------------------------------------------------
 // بوت‌استرپ دیتابیس برای استقرار سرورلس (Vercel و مشابه)
@@ -35,7 +36,71 @@ function envFileUrl(): string | null {
   return null
 }
 
-/** بوت‌استرپ SQLite برای توسعه — فقط در محیط غیر production فراخوانی می‌شود */
+/** مسیر دیتابیس بذر داخل مخزن/باندل — با هر چیدمان استقرار پیدا می‌شود */
+function findSeedDb(): string | null {
+  const candidates = [
+    path.join(process.cwd(), 'db', 'seed.db'),
+    path.join(process.cwd(), 'prisma', 'seed.db'),
+    path.join(process.cwd(), 'db', 'custom.db'),
+    path.join(process.cwd(), '.next', 'standalone', 'db', 'seed.db'),
+    path.join(process.cwd(), '..', 'db', 'seed.db'),
+  ]
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate
+    } catch {
+      // مسیر خوانا نیست؛ گزینهٔ بعدی
+    }
+  }
+  return null
+}
+
+/** آستانهٔ «دیتابیس خالی»: فایل sqlite تازه‌ساخت schema-only چند ده کیلوبایت است؛ بذر ~۸۰۰KB */
+const EMPTY_DB_MAX_BYTES = 65_536
+
+/**
+ * نشاندن بذر روی فایل sqlite هدف — فقط وقتی فایل غایب یا خالی است یا از نسخهٔ
+ * بذر قدیمی‌تر است (meta اندازهٔ بذر؛ redeploy با schema جدید فایل کهنگهٔ
+ * ناسازگار را جایگزین می‌کند). فایل حجیمِ هم‌نسخه با بذر دست‌نخورده می‌ماند.
+ */
+function ensureSeeded(target: string): void {
+  const seed = findSeedDb()
+  if (!seed) return
+  const meta = `${target}.seedmeta`
+  let seedSize = -1
+  try {
+    seedSize = fs.statSync(seed).size
+  } catch {
+    return
+  }
+  let currentSize = -1
+  try {
+    currentSize = fs.statSync(target).size
+  } catch {
+    /* فایل نیست — بذر می‌خورد */
+  }
+  let lastSeedSize = -1
+  try {
+    lastSeedSize = Number(fs.readFileSync(meta, 'utf8').trim())
+  } catch {
+    /* meta نیست */
+  }
+  if (currentSize > EMPTY_DB_MAX_BYTES && lastSeedSize === seedSize) return
+  try {
+    fs.copyFileSync(seed, target)
+    fs.writeFileSync(meta, String(seedSize))
+  } catch {
+    /* فایل‌سیستم فقطخواندنی — با همان فایل موجود ادامه می‌دهیم */
+  }
+}
+
+/**
+ * بوت‌استرپ SQLite — توسعه، ورسل و هاستِ بدون PostgreSQL.
+ * در production هم وقتی «حالت نمایشی» فعال است (پیش‌فرض؛ برای استقرار واقعی:
+ * TENON_DISABLE_DEMO_LOGIN=1 یا TENON_REQUIRE_DATABASE_URL=1) از همین مسیر
+ * استفاده می‌شود تا کل نرم‌افزار روی هاستی که دیتابیس تنظیم نکرده به‌جای خطا
+ * با دادهٔ نمونه بالا بیاید.
+ */
 function bootstrapSqliteFallback(url: string) {
   const filePart = url.startsWith('file:') ? url.slice('file:'.length) : ''
 
@@ -48,39 +113,37 @@ function bootstrapSqliteFallback(url: string) {
         : [path.resolve(process.cwd(), filePart), path.resolve(process.cwd(), 'prisma', filePart)]
             .find((p) => fs.existsSync(p)) ?? null
 
+  // فایل موجودِ پلتفرم اما خالی (schema-only) → با دیتابیس بذر جایگزین می‌شود.
+  // فقط فایل‌های بیرون از مخزن — فایل‌های توسعهٔ داخل پروژه هرگز بازنویسی نمی‌شوند.
+  if (process.env.VERCEL !== '1' && resolvedFile) {
+    const inProject = resolvedFile.startsWith(process.cwd() + path.sep)
+    try {
+      if (!inProject && fs.statSync(resolvedFile).size <= EMPTY_DB_MAX_BYTES) ensureSeeded(resolvedFile)
+    } catch {
+      // اندازه خوانا نشد؛ با همان فایل ادامه
+    }
+    return
+  }
+
   // آیا نیاز به بوت‌استرپ داریم؟
   const needsBootstrap =
-    process.env.VERCEL === '1' || // محیط سرورلس ورسل
+    process.env.VERCEL === '1' || // محیط سرورلس ورسل (فایل‌سیستم فقطخواندنی به‌جز /tmp)
     !url || // هیچ URL ای تنظیم نشده
-    (filePart !== '' && resolvedFile === null) // فایل تنظیم‌شده وجود ندارد
+    filePart !== '' // فایل تنظیم‌شده پیدا نشد
 
   if (!needsBootstrap) return
 
   const target = '/tmp/10on.db'
-  if (!fs.existsSync(target)) {
-    const candidates = [
-      path.join(process.cwd(), 'db', 'seed.db'),
-      path.join(process.cwd(), 'prisma', 'seed.db'),
-      path.join(process.cwd(), 'db', 'custom.db'),
-    ]
-    for (const candidate of candidates) {
-      try {
-        if (fs.existsSync(candidate)) {
-          fs.copyFileSync(candidate, target)
-          break
-        }
-      } catch {
-        // نادیده بگیر و سراغ گزینه بعدی برو
-      }
-    }
-  }
+  ensureSeeded(target)
   process.env.DATABASE_URL = `file:${target}`
 }
 
 /**
  * اتصال دیتابیس را تضمین می‌کند — فقط با اولین دسترسی واقعی صدا زده می‌شود.
- * Production بدون DATABASE_URL امن متوقف می‌شود (fail-closed):
- * هیچ fallback فایلِ حاوی اعتبارنامه، هیچ دیتابیس آزمایشی خاموش.
+ * Production با PostgreSQL پیکربندی‌شده مستقیم وصل می‌شود؛ در حالت نمایشی
+ * (پیش‌فرض) بدون PostgreSQL از دیتابیس بذر SQLite استفاده می‌شود تا کل
+ * نرم‌افزار روی هاست بدون تنظیمات هم کار کند — نه خطای «تنظیمات محیطی».
+ * استقرار واقعی fail-closed می‌ماند: TENON_DISABLE_DEMO_LOGIN=1 یا TENON_REQUIRE_DATABASE_URL=1
  * خطا نباید مقدار تلاش‌شده یا بخشی از رشته اتصال را نشان دهد.
  */
 function requireDatabaseUrl() {
@@ -100,7 +163,7 @@ function requireDatabaseUrl() {
   }
 
   const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
-  if (isProduction) {
+  if (isProduction && (process.env.TENON_REQUIRE_DATABASE_URL === '1' || !isDemoAuthEnabled())) {
     throw new Error(
       'CONFIGURATION ERROR: DATABASE_URL environment variable is required in production. ' +
         'Set it in the hosting provider (e.g. Vercel Project Settings → Environment Variables). ' +

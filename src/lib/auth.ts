@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
-import { createHmac, timingSafeEqual } from 'crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
+import fs from 'fs'
 import { db } from '@/lib/db'
 import { cleanEnvValue } from '@/lib/env-value'
 import { tenantCtxFromUser } from './tenant-als'
@@ -11,23 +12,58 @@ const MAX_AGE = 60 * 60 * 24 * 30 // ۳۰ روز
 const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
 
 /**
- * Secret نشست — فقط از متغیر محیطی.
- * Production بدون AUTH_SECRET (حداقل ۳۲ کاراکتر) باید امن متوقف شود؛
- * secret پیش‌فرض ثابت وجود ندارد. fallback فقط برای توسعه محلی است.
+ * Secret نشست — ترجیحاً از متغیر محیطی (حداقل ۳۲ کاراکتر).
+ * Production بدون AUTH_SECRET: به‌جای توقف امن با خطای ۵۰۰ که حتی کلیدهای
+ * نمایشی صفحهٔ لاگین را می‌شکست (خطای «تنظیمات محیطی هاست»)، یک secret
+ * تصادفی ephemer ساخته می‌شود که فقط همین نمونهٔ سرور آن را می‌داند —
+ * امضای توکن از بیرون جعل‌ناپذیر است و امنیت HMAC حفظ می‌شود؛ فقط با
+ * restart نمونه نشست‌ها باطل می‌شوند.
+ * استقرار واقعی که نبود AUTH_SECRET باید آغاز را مسدود کند: TENON_REQUIRE_AUTH_SECRET=1
  */
+let ephemeralCache: string | null = null
+
+function ephemeralSecret(): string {
+  if (ephemeralCache) return ephemeralCache
+  const file = '/tmp/tenon-auth-secret'
+  try {
+    const existing = fs.readFileSync(file, 'utf8').trim()
+    if (existing.length >= 43) {
+      ephemeralCache = existing
+      return ephemeralCache // secret پایدار بین restartهای همان container
+    }
+  } catch {
+    /* فایل نیست — ساخته می‌شود */
+  }
+  const generated = randomBytes(32).toString('base64url')
+  try {
+    fs.writeFileSync(file, generated, { mode: 0o600 })
+  } catch {
+    /* فایل‌سیستم فقطخواندنی — secret فقط در حافظهٔ همین process معتبر است */
+  }
+  ephemeralCache = generated
+  console.warn(
+    '[auth] AUTH_SECRET تنظیم نشده — secret تصادفی موقت برای این نمونه ساخته شد؛ با restart نمونه نشست‌ها باطل می‌شوند. ' +
+      'برای نشست پایدار AUTH_SECRET (حداقل ۳۲ کاراکتر) را در پنل هاست تنظیم کنید.'
+  )
+  return ephemeralCache
+}
+
 function getSecret(): string {
   // مقدار paste شده در پنل ممکن است کل خط یا داخل نقل‌قول باشد — پاک‌سازی و بازنویسی
   const raw = process.env.AUTH_SECRET ?? ''
   const s = cleanEnvValue(raw, 'AUTH_SECRET')
   if (s !== raw) process.env.AUTH_SECRET = s
   if (s && s.length >= 32) return s
-  if (isProduction) {
+  if (!(process.env.VERCEL === '1' || process.env.NODE_ENV === 'production')) {
+    return 'tenon-dev-only-fallback-secret—FORBIDDEN-IN-PRODUCTION'
+  }
+  if (process.env.TENON_REQUIRE_AUTH_SECRET === '1') {
     throw new Error(
       'CONFIGURATION ERROR: AUTH_SECRET environment variable (min 32 chars) is required in production. ' +
         'Set it in the hosting provider before deploying.'
     )
   }
-  return 'tenon-dev-only-fallback-secret—FORBIDDEN-IN-PRODUCTION'
+  return ephemeralSecret()
 }
 
 export type SessionUser = {

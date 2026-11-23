@@ -44,7 +44,16 @@ export function tenantCtxFromUser(u: {
   branchId: string | null
   patientId: string | null
 }): TenantCtx | null {
-  if (!u.clinicId) return null
+  if (!u.clinicId) {
+    // نشست نمایشی ایستا (کاربر demo- بدون DB): زمینهٔ نمایشی با clinicId خالی —
+    // خواندن‌ها به «هیچ» scope می‌شوند (لیست خالی، بدون افشای دادهٔ واقعی) و
+    // دروازهٔ tenantHandler به‌جای 403 عبور می‌دهد تا نشست نمایشی با refresh
+    // هم باقی بماند و کل نرم‌افزار قابل مرور باشد.
+    if (u.id.startsWith('demo-')) {
+      return { clinicId: '', userId: u.id, role: u.role, branchId: null, patientId: u.patientId }
+    }
+    return null
+  }
   const effectiveBranchId = CLINIC_WIDE_ROLES.has(u.role) ? null : u.branchId
   return {
     clinicId: u.clinicId,
