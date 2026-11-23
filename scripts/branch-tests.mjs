@@ -113,6 +113,22 @@ const stockAfter = await db.$queryRaw`SELECT "stockQty" FROM "Product" WHERE id 
 record('فروش هم‌زمان آخرین موجودی → فقط یکی موفق', saleWins === 1, `201s=${saleWins}`)
 record('موجودی منفی نمی‌شود', Number(stockAfter[0]?.stockQty ?? -1) === 0, `qty=${stockAfter[0]?.stockQty}`)
 
+
+// ---------- ۷) بازبینی-۱: ADMIN با branchId ثبت‌شده در DB باید کلینیک‌گسترده بماند (effectiveBranchId)
+const admB = await db.user.create({ data: { username: `admb${stamp}`, password: mkHash(passR), fullName: 'مدیر با شعبهٔ ثبت‌شده', role: 'ADMIN', clinicId: clinic.id, branchId: br1.id, active: true } })
+const cookieAdmB = await login(admB.username, passR)
+const admBBoth = await api('/api/appointments', { cookie: cookieAdmB })
+const seesAll = JSON.stringify(admBBoth.data).includes(appt1.id) && JSON.stringify(admBBoth.data).includes(appt2.id)
+record('مدیر ADMIN با branchId ثبت‌شده باز هم هر دو شعبه را می‌بیند (effectiveBranchId)', seesAll, `has1=${JSON.stringify(admBBoth.data).includes(appt1.id)} has2=${JSON.stringify(admBBoth.data).includes(appt2.id)}`)
+
+// ---------- ۸) بازبینی-۲: scoping پزشک — فهرست عمومی هر شعبه فقط پزشکان همان شعبه + رزرو با پزشک شعبهٔ دیگر مسدود (تست قبلی)
+const metaB1 = await api(`/api/meta?branchId=${br1.id}`)
+const metaStr1 = JSON.stringify(metaB1.data)
+const metaB2 = await api(`/api/meta?branchId=${br2.id}`)
+const metaStr2 = JSON.stringify(metaB2.data)
+record('فهرست پزشکان شعبه ۱ فقط پزشک شعبه ۱ را نشان می‌دهد (branch-scoped listing)', metaB1.status === 200 && metaStr1.includes(doc1.id) && !metaStr1.includes(doc2.id), `has1=${metaStr1.includes(doc1.id)} has2=${metaStr1.includes(doc2.id)}`)
+record('فهرست پزشکان شعبه ۲ فقط پزشک شعبه ۲ را نشان می‌دهد', metaB2.status === 200 && metaStr2.includes(doc2.id) && !metaStr2.includes(doc1.id), `has2=${metaStr2.includes(doc2.id)} has1=${metaStr2.includes(doc1.id)}`)
+
 // cleanup
 await db.$disconnect()
 const fails = results.filter((r) => !r.pass).length

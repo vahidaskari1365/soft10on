@@ -6,6 +6,8 @@
 import fs from 'node:fs'
 
 export function loadTestDbUrl() {
+  // اولویت: متغیر محیطی همان چیزی است که سرور/فرزند واقعاً استفاده می‌کند؛ فایل فقط fallback
+  if (process.env.DATABASE_URL?.trim()) return process.env.DATABASE_URL.trim()
   for (const f of ['.env.local', '.env']) {
     try {
       const raw = fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8')
@@ -13,8 +15,10 @@ export function loadTestDbUrl() {
       if (m) return m[1].trim()
     } catch { /* فایل بعدی */ }
   }
-  return process.env.DATABASE_URL ?? ''
+  return ''
 }
+
+let validatedUrl = ''
 
 export function assertTestDb() {
   const url = loadTestDbUrl()
@@ -29,5 +33,12 @@ export function assertTestDb() {
     console.error('  برای امنیت دادهٔ واقعی، اجرا متوقف شد. راه‌اندازی تست: bun run db:test:up')
     process.exit(2)
   }
-  return url
+  // پاسخ به بازبینی: اگر بعد از اعتبارسنجی، محیط تغییر کند (مثلاً dotenv داخل @prisma/client
+  // فایل .env را بارگذاری کند)، باید صریحاً شکست بخورد نه اینکه بی‌صدا به DB دیگری برود
+  if (validatedUrl && validatedUrl !== url) {
+    console.error('BLOCKED: DATABASE_URL در میانهٔ اجرا تغییر کرد —', validatedUrl.slice(0, 50), '→', url.slice(0, 50))
+    process.exit(2)
+  }
+  validatedUrl = url
+  return validatedUrl
 }

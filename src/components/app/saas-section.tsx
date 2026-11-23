@@ -229,8 +229,8 @@ export function SaasSection() {
             <Card className="rounded-2xl card-hover">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between"><span className="text-[11px] text-muted-foreground">سهم AI از پاسخ‌ها</span><Bot className="h-4 w-4 text-gold" /></div>
-                <div className="text-xl font-extrabold mt-1.5">{faDigits(data.ai?.summary.aiShare ?? 0)}٪</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{faDigits(data.ai?.summary.total ?? 0)} درخواست ثبت‌شده</div>
+                <div className="text-xl font-extrabold mt-1.5">{faDigits(data.ai?.summary?.aiShare ?? 0)}٪</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{faDigits(data.ai?.summary?.total ?? 0)} درخواست ثبت‌شده</div>
               </CardContent>
             </Card>
           </div>
@@ -353,19 +353,19 @@ export function SaasSection() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card className="rounded-2xl"><CardContent className="p-4">
               <div className="text-[11px] text-muted-foreground">کل درخواست‌ها</div>
-              <div className="text-xl font-extrabold mt-1">{faDigits(data.ai?.summary.total ?? 0)}</div>
+              <div className="text-xl font-extrabold mt-1">{faDigits(data.ai?.summary?.total ?? 0)}</div>
             </CardContent></Card>
             <Card className="rounded-2xl"><CardContent className="p-4">
               <div className="text-[11px] text-muted-foreground">با هوش مصنوعی</div>
-              <div className="text-xl font-extrabold mt-1">{faDigits(data.ai?.summary.aiUsed ?? 0)}</div>
+              <div className="text-xl font-extrabold mt-1">{faDigits(data.ai?.summary?.aiUsed ?? 0)}</div>
             </CardContent></Card>
             <Card className="rounded-2xl"><CardContent className="p-4">
               <div className="text-[11px] text-muted-foreground">موفق</div>
-              <div className="text-xl font-extrabold mt-1 text-emerald-600">{faDigits(data.ai?.summary.ok ?? 0)}</div>
+              <div className="text-xl font-extrabold mt-1 text-emerald-600">{faDigits(data.ai?.summary?.ok ?? 0)}</div>
             </CardContent></Card>
             <Card className="rounded-2xl"><CardContent className="p-4">
               <div className="text-[11px] text-muted-foreground">میانگین تأخیر</div>
-              <div className="text-xl font-extrabold mt-1">{faDigits(data.ai?.summary.avgLatencyMs ?? 0)}ms</div>
+              <div className="text-xl font-extrabold mt-1">{faDigits(data.ai?.summary?.avgLatencyMs ?? 0)}ms</div>
             </CardContent></Card>
           </div>
 

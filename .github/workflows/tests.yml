@@ -1,0 +1,51 @@
+name: tests
+# اثبات اجرای واقعی تست‌ها در CI — پاسخ به بازبینی (وضعیت Vercel به‌تنهایی اثبات نیست)
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tenon
+          POSTGRES_PASSWORD: tenon-ci
+          POSTGRES_DB: tenon_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tenon" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://tenon:tenon-ci@localhost:5432/tenon_test
+      AUTH_SECRET: ci-secret-0123456789abcdefghij0123456789
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install chromium --with-deps || bunx playwright install chromium
+      - run: bunx prisma generate
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bunx prisma migrate deploy
+      - run: bun run build
+      - name: Start dev server
+        run: |
+          bun run dev --port 3000 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3000/api/health && break
+            sleep 2
+          done
+          curl -sf http://localhost:3000/api/health || (echo "server failed to start" && exit 1)
+      - name: Full test suite (unit + branch + isolation + security + finance + auth + seed + workflows + UI)
+        run: bun run test:all
+      - name: Backup/restore proof
+        run: bun run test:backup
+      - name: Performance volume
+        run: bun run test:perf

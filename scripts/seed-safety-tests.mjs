@@ -58,6 +58,18 @@ record('دادهٔ کلینیک دیگر حذف نشد', (await db.patient.count
 const demoUsers = await db.user.count({ where: { username: { in: ['manager', 'super', 'admin', 'reception', 'reception2', 'doctor', 'patient'] } } })
 record('کاربران دمو تکثیر نشدند (۷ کاربر)', demoUsers === 7, `count=${demoUsers}`)
 
+
+// ————— KnowledgeBase و AiCall (جدول global): پس از اجرای دوبارهٔ seed تکثیر نمی‌شوند
+const kbBefore = await db.knowledgeBase.count()
+const aiBefore = await db.aiCall.count()
+try {
+  runSeed({ NODE_ENV: 'development' })
+} catch (e) { console.error('third seed run failed', String(e).slice(0, 120)) }
+const kbAfter = await db.knowledgeBase.count()
+const aiAfter = await db.aiCall.count()
+record('KnowledgeBase پس از اجرای مجدد seed تکثیر نشد', kbAfter === kbBefore, `${kbBefore}→${kbAfter}`)
+record('AiCall پس از اجرای مجدد seed تکثیر نشد (marker refKey=seed)', aiAfter === aiBefore, `${aiBefore}→${aiAfter}`)
+
 // ————— seed در production بلاک می‌شود
 let prodBlocked = false
 try {

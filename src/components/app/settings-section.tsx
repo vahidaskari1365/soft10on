@@ -174,13 +174,13 @@ export function SettingsSection() {
         </TabsContent>
 
         <TabsContent value="usage" className="mt-4 space-y-4">
-          {!usage ? <LoadingBlock rows={3} /> : (
+          {!usage?.summary ? <div className="text-sm text-muted-foreground p-4 rounded-xl border bg-card">دادهٔ عملکرد دستیارها برای نقش شما در دسترس نیست — با نقش کلینیک وارد شوید.</div> : (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <StatCard title="فراخوانی ۳۰ روز اخیر" value={faDigits(usage.summary.total)} tone="purple" icon={<Sparkles className="h-5 w-5" />} />
-                <StatCard title="سهم هوش مصنوعی واقعی" value={`${faDigits(usage.summary.aiShare)}٪`} tone="green" hint={`بقیه حالت قانون‌محور`} />
+                <StatCard title="فراخوانی ۳۰ روز اخیر" value={faDigits(usage.summary?.total)} tone="purple" icon={<Sparkles className="h-5 w-5" />} />
+                <StatCard title="سهم هوش مصنوعی واقعی" value={`${faDigits(usage.summary?.aiShare)}٪`} tone="green" hint={`بقیه حالت قانون‌محور`} />
                 <StatCard title="میانگین تأخیر" value={`${faDigits(usage.summary.avgLatencyMs)}ms`} />
-                <StatCard title="موفق" value={`${faDigits(usage.summary.ok)}/${faDigits(usage.summary.total)}`} />
+                <StatCard title="موفق" value={`${faDigits(usage.summary.ok)}/${faDigits(usage.summary?.total)}`} />
               </div>
               <Card className="rounded-2xl border"><CardContent className="p-4">
                 <h3 className="font-bold mb-3">به تفکیک دستیار</h3>

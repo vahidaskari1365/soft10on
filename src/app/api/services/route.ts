@@ -38,7 +38,8 @@ export const POST = tenantHandler('ADMIN')(async (session, request) => {
   if (!taxPercent.ok) return NextResponse.json({ error: taxPercent.error }, { status: 400 })
 
   if (code.value) {
-    const dup = await db.service.findUnique({ where: { code: code.value } })
+    // یکتایی کد خدمت در سطح کلینیک است — findFirst با scope خودکار (کد تکراری کلینیک‌های دیگر مشکلی ندارد)
+    const dup = await db.service.findFirst({ where: { code: code.value } })
     if (dup) return NextResponse.json({ error: 'کد خدمت تکراری است' }, { status: 409 })
   }
 

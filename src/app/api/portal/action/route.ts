@@ -49,6 +49,9 @@ export async function POST(request: Request) {
     if (body.phone) data.phone = String(body.phone).trim()
     if (body.email !== undefined) data.email = body.email ? String(body.email).trim() : null
     const patientData: Record<string, unknown> = {}
+    // تلفن تماس نمایش‌داده‌شده در پرتال patient.phone است — هر دو باید هم‌گام شوند وگرنه
+    // پیام موفقیت جعلی می‌شود (UI مقدار قدیمی را نشان می‌دهد)
+    if (body.phone) patientData.phone = String(body.phone).trim()
     if (body.birthYear) patientData.birthYear = Number(body.birthYear) || null
 
     await db.user.update({ where: { id: user.id }, data })

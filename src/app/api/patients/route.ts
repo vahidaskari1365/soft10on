@@ -6,8 +6,22 @@ import { vStr, vPhone, vNationalId, vEmail, vInt, vEnum, vDate, BLOOD_TYPES, GEN
 import { addTimeline } from '@/lib/timeline'
 import { logAudit } from '@/lib/audit'
 
-export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', 'ACCOUNTANT')(async () => {
-  const patients = await db.patient.findMany({ orderBy: { createdAt: 'asc' } })
+export const GET = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'DOCTOR', 'ACCOUNTANT')(async (_session, request) => {
+  // جست‌وجوی q (نام/نام‌خانوادگی/تلفن/شماره پرونده) — پیش‌تر پارامتر کاملاً نادیده گرفته می‌شد
+  const q = new URL(request.url).searchParams.get('q')?.trim() ?? ''
+  const patients = await db.patient.findMany({
+    where: q
+      ? {
+          OR: [
+            { firstName: { contains: q } },
+            { lastName: { contains: q } },
+            { phone: { contains: q } },
+            { fileNo: { contains: q } },
+          ],
+        }
+      : {},
+    orderBy: { createdAt: 'asc' },
+  })
   const now = new Date()
   const sixMonthsAgo = new Date(now.getTime() - 182 * 86400000)
 

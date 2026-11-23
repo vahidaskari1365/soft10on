@@ -50,7 +50,8 @@ export function tenantCtxFromUser(u: {
     clinicId: u.clinicId,
     userId: u.id,
     role: u.role,
-    branchId: u.branchId,
+    // نقش‌های کلینیک‌گسترده باید branchId مؤثر null بگیرند — حتی اگر در DB شعبه‌ای ثبت شده باشد
+    branchId: effectiveBranchId,
     patientId: u.patientId,
   }
 }

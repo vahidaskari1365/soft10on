@@ -8,8 +8,11 @@ import { SectionHeader, Pill, EmptyState, LoadingBlock } from './bits'
 import type { TaskItem } from './types'
 import { TASK_STATUS, TASK_PRIORITY, ROLE_LABEL, SOURCE_LABEL } from '@/lib/format'
 import { formatJDate, formatTime, formatDayRelative, faDigits } from '@/lib/jalali'
-import { CheckCircle2, CircleDot, PauseCircle, Clock } from 'lucide-react'
+import { CheckCircle2, CircleDot, PauseCircle, Clock, Plus, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 const FILTERS = [
   { key: 'all', label: 'همه' },
@@ -22,6 +25,10 @@ const FILTERS = [
 export function TasksSection() {
   const [tasks, setTasks] = useState<TaskItem[] | null>(null)
   const [filter, setFilter] = useState<string>('all')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createErr, setCreateErr] = useState('')
+  const [form, setForm] = useState({ title: '', assigneeRole: 'RECEPTIONIST', priority: 'MEDIUM', dueAt: '', description: '' })
   const { toast } = useToast()
 
   const load = async () => {
@@ -61,7 +68,77 @@ export function TasksSection() {
 
   return (
     <div className="space-y-4">
-      <SectionHeader title="کارتابل عملیات" subtitle="هر درخواست، یک کار با مسئول و مهلت مشخص — هیچ کاری گم نمی‌شود" />
+      <SectionHeader title="کارتابل عملیات" subtitle="هر درخواست، یک کار با مسئول و مهلت مشخص — هیچ کاری گم نمی‌شود">
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <Button
+            className="rounded-xl"
+            onClick={() => { setCreateOpen(true); setCreateErr('') }}
+          >
+            <Plus className="h-4 w-4 ml-1" /> کار جدید
+          </Button>
+          <DialogContent className="rounded-2xl max-w-md">
+            <DialogHeader><DialogTitle>ایجاد کار جدید</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              {createErr ? <div className="text-xs text-rose-600 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2">{createErr}</div> : null}
+              <div className="space-y-1"><Label>عنوان *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="مثلاً تماس پیگیری با بیمار" className="rounded-xl" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>مسئول</Label>
+                  <Select value={form.assigneeRole} onValueChange={(v) => setForm({ ...form, assigneeRole: v })}>
+                    <SelectTrigger className="w-full rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {['RECEPTIONIST', 'DOCTOR', 'ADMIN', 'ACCOUNTANT'].map((r) => (
+                        <SelectItem key={r} value={r}>{ROLE_LABEL[r] ?? r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>اولویت</Label>
+                  <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+                    <SelectTrigger className="w-full rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {['LOW', 'MEDIUM', 'HIGH'].map((p) => (
+                        <SelectItem key={p} value={p}>{TASK_PRIORITY[p]?.label ?? p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1"><Label>مهلت</Label><Input type="datetime-local" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} className="rounded-xl" dir="ltr" /></div>
+              <div className="space-y-1"><Label>توضیح</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="اختیاری" className="rounded-xl" /></div>
+              <Button
+                className="w-full rounded-xl"
+                disabled={creating}
+                onClick={async () => {
+                  if (!form.title.trim()) { setCreateErr('عنوان کار الزامی است'); return }
+                  setCreating(true); setCreateErr('')
+                  try {
+                    const res = await fetch('/api/tasks', {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ ...form, dueAt: form.dueAt || undefined }),
+                    })
+                    const j = await res.json().catch(() => ({}))
+                    if (res.ok) {
+                      toast({ title: 'کار ایجاد شد', description: form.title })
+                      setCreateOpen(false)
+                      setForm({ title: '', assigneeRole: 'RECEPTIONIST', priority: 'MEDIUM', dueAt: '', description: '' })
+                      window.location.reload()
+                    } else {
+                      setCreateErr(String(j.error ?? 'خطا در ایجاد کار'))
+                    }
+                  } catch {
+                    setCreateErr('ارتباط با سرور برقرار نشد')
+                  } finally { setCreating(false) }
+                }}
+              >
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 ml-1" />}
+                {creating ? 'در حال ثبت…' : 'ایجاد کار'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </SectionHeader>
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (

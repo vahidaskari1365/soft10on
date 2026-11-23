@@ -79,6 +79,7 @@ const NAV_PATIENT: NavItem[] = [
 ]
 
 const ROLE_HOME: Record<string, string> = {
+  SUPER_ADMIN: 'platform', // مدیر پلتفرم مستقیم به پنل پلتفرم — داشبورد کلینیک برای او ۴۰۳ می‌دهد
   ADMIN: 'dashboard',
   RECEPTIONIST: 'dashboard',
   DOCTOR: 'doctor',
@@ -294,8 +295,8 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
             {section === 'tasks' && <TasksSection />}
             {section === 'patients' && <PatientsSection />}
             {section === 'finance' && <FinanceSection />}
-            {section === 'reports' && user.role === 'ADMIN' && <ReportsSection />}
-            {section === 'platform' && user.role === 'ADMIN' && <SaasSection />}
+            {section === 'reports' && (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && <ReportsSection />}
+            {section === 'platform' && (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && <SaasSection />}
             {section === 'branches' && <BranchesSection />}
             {section === 'staff' && <StaffSection />}
             {section === 'agent' && (user.role === 'ADMIN'
@@ -329,7 +330,7 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
             {section === 'messages' && <MessagesSection isPatient={user.role === 'PATIENT'} />}
             {section === 'waitlist' && <WaitlistSection />}
             {section === 'records' && <RecordsSection isPatient={user.role === 'PATIENT'} patientName={user.patientName ?? undefined} />}
-            {section === 'settings' && user.role === 'ADMIN' && <SettingsSection />}
+            {section === 'settings' && (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && <SettingsSection />}
             {section === 'agent' && user.role === 'DOCTOR' && (
               <AgentChatSection
                 key="doctor-agent"

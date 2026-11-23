@@ -27,6 +27,9 @@ const FIELD = 'rounded-xl'
 const Label = ({ children }: { children: React.ReactNode }) => (
   <span className="text-[11px] text-muted-foreground">{children}</span>
 )
+const T = ({ children }: { children: React.ReactNode }) => (
+  <div className="text-xs font-bold text-primary mt-3 mb-1.5 first:mt-0">{children}</div>
+)
 
 export function PatientFormDialog({
   open, setOpen, editing, onSaved, toast,
@@ -92,10 +95,6 @@ export function PatientFormDialog({
     setOpen(false)
     onSaved()
   }
-
-  const T = ({ children }: { children: React.ReactNode }) => (
-    <div className="text-xs font-bold text-primary mt-3 mb-1.5 first:mt-0">{children}</div>
-  )
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

@@ -188,7 +188,7 @@ export function DashboardSection({ onNavigate, quickKeys = [] }: { onNavigate: (
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">ترکیب درآمد این ماه</CardTitle>
           </CardHeader>
@@ -222,7 +222,7 @@ export function DashboardSection({ onNavigate, quickKeys = [] }: { onNavigate: (
 
       {/* Today + Tasks */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl min-w-0">
           <CardHeader className="pb-2 flex-row items-center justify-between">
             <CardTitle className="text-base">امروز در کلینیک</CardTitle>
             <Button size="sm" variant="ghost" className="text-xs rounded-lg text-sky-700 hover:bg-sky-50" onClick={() => onNavigate('appointments')}>
@@ -256,7 +256,7 @@ export function DashboardSection({ onNavigate, quickKeys = [] }: { onNavigate: (
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl min-w-0">
           <CardHeader className="pb-2 flex-row items-center justify-between">
             <CardTitle className="text-base">کارهای نیازمند توجه</CardTitle>
             <Button size="sm" variant="ghost" className="text-xs rounded-lg text-sky-700 hover:bg-sky-50" onClick={() => onNavigate('tasks')}>
@@ -297,7 +297,7 @@ export function DashboardSection({ onNavigate, quickKeys = [] }: { onNavigate: (
 
       {/* Next up + low stock */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Clock className="h-4 w-4 text-primary" /> نوبت‌های پیش‌رو
@@ -322,7 +322,7 @@ export function DashboardSection({ onNavigate, quickKeys = [] }: { onNavigate: (
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Package className="h-4 w-4 text-primary" /> هشدار انبار

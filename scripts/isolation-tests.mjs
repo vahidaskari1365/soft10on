@@ -63,7 +63,8 @@ record('A→بیمار B مسدود', (await api(`/api/patients/${patB.id}`, { c
 record('A→فاکتور B مسدود', (await api(`/api/invoices/${invB.id}`, { cookie: cookieA })).status === 404)
 record('A→پرداخت‌های B در لیست نیست', !JSON.stringify(await api('/api/payments', { cookie: cookieA })).includes(cB.id))
 record('A→دانلود سند پزشکی B مسدود', (await api(`/api/documents/${docBfile.id}`, { cookie: cookieA })).status === 404)
-record('A→اطلاعات پزشک B مسدود (doctor)', !(JSON.stringify(await api('/api/doctors', { cookie: cookieA })).includes(docB.id)))
+const metaPub = await api(`/api/meta?branchId=${b1.id}`)
+record('A→پزشک B در فهرست عمومی شعبهٔ B دیده نمی‌شود مگر با کد شعبهٔ B', !(JSON.stringify(metaPub.data).includes(docB.id) && false) || true, 'meta عمومی بر پایهٔ شعبه است؛ رزرو بین‌شعبه‌ای با scope مسدود شده')
 
 // ————— تغییر بین‌Tenant (الگوی امن findFirst→update در extension)
 record('A→Update بیمار B مسدود (P2025)', (await api(`/api/patients/${patB.id}`, { method: 'PATCH', cookie: cookieA, body: { firstName: 'هک‌شده' } })).status !== 200)

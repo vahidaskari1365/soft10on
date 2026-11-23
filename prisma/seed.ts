@@ -688,6 +688,8 @@ await db.purchase.deleteMany()
     ['با تأمین سلامت نوبت میدید؟', 'بله، خدمات ترمیمی و پیشگیری با پوشش تأمین سلامت انجام می‌شود؛ هنگام پذیرش کارت بیمه را همراه داشته باشید.', 'INSURANCE'],
     ['فرصت لغو نوبت چقدره؟', 'تا ۳ ساعت قبل از نوبت می‌توانید بدون جریمه لغو یا جابه‌جا کنید؛ کافی است پیام بدهید یا تماس بگیرید.', 'APPOINTMENT'],
   ]
+  // idempotency: فقط ردیف‌هایی که متن سؤالشان از این seed است پاک می‌شوند — KnowledgeBase جدول global است
+  await db.knowledgeBase.deleteMany({ where: { question: { in: faqs.map(([q]) => q) } } })
   for (const [q, a, cat] of faqs) {
     await db.knowledgeBase.create({ data: { question: q, answer: a, category: cat } })
   }
@@ -719,6 +721,8 @@ await db.purchase.deleteMany()
     ['PATIENT', 'AUTO_REPLY', 0.95],
     ['DOCTOR', 'SUMMARY', 0.7],
   ]
+  // idempotency: فقط ردیف‌های دموی خود seed (با marker) پاک می‌شوند — دادهٔ واقعی global دست‌نخورده
+  await db.aiCall.deleteMany({ where: { refKey: 'seed' } })
   for (let d = 13; d >= 0; d--) {
     const callsPerDay = 3 + Math.floor(rnd() * 6)
     for (let i = 0; i < callsPerDay; i++) {
@@ -726,6 +730,7 @@ await db.purchase.deleteMany()
       const aiUsed = rnd() < aiShare
       await db.aiCall.create({
         data: {
+          refKey: 'seed', // marker مالکیت دادهٔ دمو — برای idempotency در اجرای مجدد
           role,
           agent,
           ok: true,

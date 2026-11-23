@@ -269,9 +269,6 @@ function scopedDelegate(model: string, delegate: object): object {
           const checkFn = Reflect.get(d, 'findFirst', d) as AnyFn
           const checkArgs: AnyArgs = { where: first.where }
           applyWhereScope(model, checkArgs, ctx)
-          void Promise.resolve(checkFn.apply(d, [checkArgs])).then((found) => {
-            if (!found) throw ownershipNotFound(model, first.where)
-          })
           // mass-assignment: دادهٔ به‌روزرسانی حق تغییر مالکیت Tenant/Branch ندارد
           const mutData = ((first as AnyArgs).update ?? (first as AnyArgs).data ?? {}) as AnyArgs
           if (mutData && typeof mutData === 'object') {

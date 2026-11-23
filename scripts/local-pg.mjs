@@ -4,11 +4,15 @@
  */
 import EmbeddedPostgres from 'embedded-postgres'
 import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const DATA_DIR = '/home/z/my-project/.pgdata'
+// مسیر داده نسبت به ریشهٔ پروژه — وابسته به کامپیوتر خاصی نیست
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const DATA_DIR = path.join(PROJECT_ROOT, '.pgdata')
 
-// جلوگیری از اتصال اشتباه به دیتابیس واقعی — فقط مسیر محلی مجاز است
-if (!DATA_DIR.startsWith('/home/z/my-project/')) {
+// جلوگیری از اتصال اشتباه به دیتابیس واقعی — فقط مسیر داخل پروژه مجاز است
+if (!DATA_DIR.startsWith(PROJECT_ROOT)) {
   console.error('BLOCKED: data dir خارج از پروژه مجاز نیست')
   process.exit(1)
 }

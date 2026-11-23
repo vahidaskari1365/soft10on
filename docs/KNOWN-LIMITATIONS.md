@@ -6,3 +6,6 @@
 5. **Rate limiter** آمادهٔ مهاجرت به Redis است (امضای `rateLimit` ثابت)؛ در مقیاس بسیار بالا (۱۰۰۰+ rps) پستگرس bottleneck می‌شود.
 6. **Journal historical seed:** فاکتورهای دموی seed سند حسابداری تاریخی ندارند (فقط دادهٔ نمایشی)؛ تراکنش‌های واقعی همیشه سند می‌سازند.
 7. **مهاجرت داده‌های واقعی:** هیچ دادهٔ واقعی بیمار در repo/seed نیست؛ data واقعی فقط در DB production است.
+
+## وابستگی‌ها — پس از ارتقای امن (این سشن)
+`next→16.4.6`، `next-auth→4.24.15` و overrides برای js-cookie/lodash/nanoid/picomatch/js-yaml: audit prod از «2 critical/15 high» به **«0 critical/2 high/4 moderate»** رسید (تأیید: build + رگرسیون کامل سبز پس از ارتقا). باقی‌مانده‌ها زنجیره‌های parse/ReDoS‌اند و در مسیر درخواست‌های حساس نیستند؛ ارتقای کامل نیازمند `@mdxeditor/editor@4.5.0` و رفع breakingهای نسخه‌ای است — PR جداگانه با رگرسیون کامل.

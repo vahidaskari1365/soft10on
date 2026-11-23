@@ -117,6 +117,18 @@ for (let i = 0; i < 12; i++) {
   if (r.status === 429) { got429 = true; break }
 }
 record('سقف لاگین → 429', got429)
+// ---------- توکن منقضی با امضای معتبر (تست واقعی expiry) — نه tampering، بلکه گذر زمان
+{
+  const { createHmac } = await import('node:crypto')
+  const secret = process.env.AUTH_SECRET || 'tenon-dev-only-fallback-secret—FORBIDDEN-IN-PRODUCTION'
+  const oldIssued = Date.now() - 31 * 86_400_000 // فراتر از MAX_AGE (۳۰ روز)
+  const payload = `${A.user.id}.1.${oldIssued}`
+  const sig = createHmac('sha256', secret).update(payload).digest('base64url')
+  const expired = `${payload}.${sig}`
+  const res = await fetch(BASE + '/api/appointments', { headers: { Cookie: `sina_session=${expired}` } })
+  record('توکن منقضی (۳۱ روز) با امضای درست → رد', res.status === 401, `status=${res.status}`)
+}
+
 
 const fails = results.filter((r) => !r.pass).length
 console.log(`\n=== ${results.length - fails}/${results.length} PASS ===`)

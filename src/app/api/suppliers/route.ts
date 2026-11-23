@@ -30,10 +30,15 @@ export const GET = tenantHandler('ADMIN')(async (session, _request) => {
 export const POST = tenantHandler('ADMIN')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as { name?: string; phone?: string; note?: string }
   if (!body.name?.trim()) return NextResponse.json({ error: 'نام تامین‌کننده الزامی است' }, { status: 400 })
-  const supplier = await db.supplier.upsert({
-    where: { name: body.name.trim() },
-    create: { name: body.name.trim(), phone: body.phone?.trim() || null, note: body.note?.trim() || null },
-    update: { phone: body.phone?.trim() || null, note: body.note?.trim() || null },
-  })
+  // یکتایی نام تأمین‌کننده در سطح کلینیک است — الگوی امن findFirst→update/create با scope خودکار
+  const existing = await db.supplier.findFirst({ where: { name: body.name.trim() } })
+  const supplier = existing
+    ? await db.supplier.update({
+        where: { id: existing.id },
+        data: { phone: body.phone?.trim() || null, note: body.note?.trim() || null },
+      })
+    : await db.supplier.create({
+        data: { name: body.name.trim(), phone: body.phone?.trim() || null, note: body.note?.trim() || null },
+      })
   return NextResponse.json({ supplier }, { status: 201 })
 })
