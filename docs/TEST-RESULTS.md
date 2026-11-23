@@ -14,7 +14,9 @@
 | E2E Workflows A–G (با تأیید DB) | test:e2e:workflows | 35 | 35 | 0 |
 | E2E UI — ورود ۵ نقش (Playwright) | test:e2e | 5 | 5 | 0 |
 | E2E UI عمیق — پیمایش واقعی تب‌های هر نقش در SPA + ثبت بیمار از فرم با تأیید DB + RTL | test:e2e:ui | 11 | 11 | 0 |
-| **جمع** | test:all | **153** | **153** | **0** |
+| E2E Journeys — ۲۳ مسیر کاری کامل نقش‌ها با تأیید DB (ورود/خروج همهٔ نقش‌ها، بیمار CRUD، چرخهٔ نوبت، فاکتور+پرداخت، صف انتظار، نسخه پزشک، پرتال، پیام‌ها، پرونده، تنظیمات) | test:e2e:journeys | 23 | 23 | 0 |
+| Backup/Restore واقعی (pg_dump→restore→verify) | test:backup | 6 | 6 | 0 |
+| **جمع (test:all + backup)** | — | **181** | **181** | **0** |
 
 ## دیگر Gateها
 | Gate | نتیجه |
@@ -27,6 +29,7 @@
 | Deliberate-fail check (runner باید شکست را ببیند) | PASS — exit=1 تشخیص داده شد |
 | گارد محیط (env-first + تشخیص تغییر URL در میانهٔ اجرا توسط dotenv وابستگی‌ها) | PASS — باگ واقعی فایل کهن .env کشف و اصلاح شد |
 | npm audit (prod، پس از ارتقای امن next→16.4.6 و next-auth→4.24.15 + overrides) | **6 مورد باقی‌مانده: 0 critical، 2 high، 4 moderate** — قبلاً 2 critical/15 high بود؛ باقی‌مانده‌ها زنجیره‌های parse/ReDoS (effect، js-yaml و…) خارج از مسیر درخواست‌های حساس؛ upgradeهای باقی‌مانده نیازمند breaking (mdxeditor 4.5.0 و…) — docs/KNOWN-LIMITATIONS.md |
+| رگرسیون نهایی فازهای شش‌گانه (این commit) | tsc=0 · lint بدون یافته · build rc=0 · ۱۸۱/۱۸۱ سبز · perf در بودجه (patients 123ms/appointments 18ms/dashboard 64ms median روی ۱۰۰۰ بیمار/۵۰۰۰ نوبت) |
 | نکتهٔ پوشش | `test:all` gate سریع است؛ Backup/Restore و Performance در `test:full` و در CI جدا اجرا می‌شوند (`.github/workflows/tests.yml` — هر دو در CI step مجزا) |
 | CI | workflow اضافه شد: typecheck+lint+build+migrate+test:all+test:backup+test:performance روی postgres service — اثبات اجرای تست‌ها مستقل از Vercel |
 

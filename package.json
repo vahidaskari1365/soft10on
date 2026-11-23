@@ -18,7 +18,7 @@
     "test:security": "node scripts/security-tests.mjs && node scripts/auth-security-tests.mjs",
     "test:finance": "node scripts/finance-tests.mjs",
     "test:e2e": "node scripts/login-cards-smoke.mjs",
-    "test:all": "bun scripts/unit-tests.ts && node scripts/branch-tests.mjs && node scripts/isolation-tests.mjs && node scripts/security-tests.mjs && node scripts/finance-tests.mjs && node scripts/auth-security-tests.mjs && node scripts/seed-safety-tests.mjs && node scripts/e2e-workflows.mjs && node scripts/login-cards-smoke.mjs && node scripts/ui-tabs-tests.mjs",
+    "test:all": "bun scripts/unit-tests.ts && node scripts/branch-tests.mjs && node scripts/isolation-tests.mjs && node scripts/security-tests.mjs && node scripts/finance-tests.mjs && node scripts/auth-security-tests.mjs && node scripts/seed-safety-tests.mjs && node scripts/e2e-workflows.mjs && node scripts/login-cards-smoke.mjs && node scripts/e2e-journeys.mjs && node scripts/ui-tabs-tests.mjs",
     "typecheck": "tsc --noEmit",
     "db:test:up": "bun scripts/local-pg.mjs",
     "db:seed": "bun prisma/seed.ts",
@@ -27,7 +27,7 @@
     "test:seed": "node scripts/seed-safety-tests.mjs",
     "test:backup": "node scripts/backup-restore-tests.mjs",
     "test:perf": "node scripts/perf-tests.mjs",
-    "test:full": "bun scripts/unit-tests.ts && node scripts/branch-tests.mjs && node scripts/isolation-tests.mjs && node scripts/security-tests.mjs && node scripts/finance-tests.mjs && node scripts/auth-security-tests.mjs && node scripts/seed-safety-tests.mjs && node scripts/e2e-workflows.mjs && node scripts/login-cards-smoke.mjs && node scripts/backup-restore-tests.mjs && node scripts/perf-tests.mjs",
+    "test:full": "bun scripts/unit-tests.ts && node scripts/branch-tests.mjs && node scripts/isolation-tests.mjs && node scripts/security-tests.mjs && node scripts/finance-tests.mjs && node scripts/auth-security-tests.mjs && node scripts/seed-safety-tests.mjs && node scripts/e2e-workflows.mjs && node scripts/login-cards-smoke.mjs && node scripts/e2e-journeys.mjs && node scripts/ui-tabs-tests.mjs && node scripts/backup-restore-tests.mjs && node scripts/perf-tests.mjs",
     "test:e2e:ui": "node scripts/ui-tabs-tests.mjs"
   },
   "dependencies": {
