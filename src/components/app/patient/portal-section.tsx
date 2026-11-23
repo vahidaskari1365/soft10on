@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { StatCard, SectionHeader, LoadingBlock, EmptyState, Pill } from '../bits'
+import { StatCard, SectionHeader, LoadingBlock, EmptyState, ErrorState, Pill } from '../bits'
 import { AssistantSection } from '../assistant-section'
 import type { PortalOverview } from '../types'
 import { APPOINTMENT_STATUS } from '@/lib/format'
@@ -21,6 +21,7 @@ import {
 
 export function PortalSection({ userName }: { userName: string }) {
   const [data, setData] = useState<PortalOverview | null>(null)
+  const [failed, setFailed] = useState(false)
   const [cancelling, setCancelling] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -36,13 +37,18 @@ export function PortalSection({ userName }: { userName: string }) {
   const [savingPass, setSavingPass] = useState(false)
 
   const load = useCallback(() => {
-    fetch('/api/portal').then((r) => r.json()).then((d) => {
-      if (d.error) return
-      setData(d)
-      setPhone(d.profile.phone ?? '')
-      setEmail(d.profile.email ?? '')
-      setBirthYear(d.profile.birthYear ? String(d.profile.birthYear) : '')
-    }).catch(() => {})
+    setFailed(false)
+    fetch('/api/portal')
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const d = await r.json()
+        if (!d || d.error) throw new Error('api')
+        setData(d)
+        setPhone(d.profile.phone ?? '')
+        setEmail(d.profile.email ?? '')
+        setBirthYear(d.profile.birthYear ? String(d.profile.birthYear) : '')
+      })
+      .catch(() => setFailed(true))
   }, [])
   useEffect(load, [load])
 
@@ -99,6 +105,7 @@ export function PortalSection({ userName }: { userName: string }) {
     }
   }
 
+  if (failed) return <ErrorState onRetry={load} />
   if (!data) return <LoadingBlock rows={5} />
 
   return (

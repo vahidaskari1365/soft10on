@@ -131,6 +131,13 @@ export const POST = tenantHandler()(async (session, request) => {
   const doctor = await db.doctor.findFirst({ where: { id: doctorId } })
   if (!doctor) return NextResponse.json({ error: 'پزشک یافت نشد' }, { status: 400 })
 
+  // branchId client هرگز منبع اعتبار نیست — اگر ارسال شود و با شعبهٔ پزشک نخواند، رد صریح
+  // (به‌جای نادیده‌گویی بی‌صدا؛ جلوی تزریق branchId بین‌شعبه‌ای/بین‌Tenantی را با پیام روشن می‌گیرد)
+  const claimedBranch = (body as { branchId?: unknown }).branchId
+  if (typeof claimedBranch === 'string' && claimedBranch && claimedBranch !== doctor.branchId) {
+    return NextResponse.json({ error: 'شعبهٔ ارسالی با شعبهٔ پزشک هم‌خوانی ندارد' }, { status: 400 })
+  }
+
   // ————— ثبت اتمیک: قفل ردیف پزشک (+ اتاق) → بازبینی تداخل داخل قفل → ثبت
   // دو درخواست هم‌زمان برای یک زمان فقط یکی موفق می‌شود؛ بررسی قبل از Insert کافی نیست
   const durationMin = Math.max(service.durationMin, 15)

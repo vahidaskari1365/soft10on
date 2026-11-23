@@ -69,30 +69,41 @@ export function SettingsSection() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ baseUrl: ai?.baseUrl, apiKey: apiKey || undefined, model: ai?.model }),
     })
-    const d = (await res.json()) as { ok: boolean; message: string }
-    setTestMsg(d)
+    const d = (await res.json().catch(() => null)) as { ok: boolean; message: string } | null
+    setTestMsg(d ?? { ok: false, message: `خطای ${res.status} در آزمایش اتصال` })
   }
 
   async function saveDna() {
     if (!dna) return
     setBusy(true)
     try {
-      await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dna }) })
+      const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dna }) })
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) throw new Error(d.error ?? `خطای ${res.status}`)
       toast({ title: 'هویت کلینیک ذخیره شد ✓', description: 'از این پس دستیارها با همین لحن و قواعد جواب می‌دهند' })
-    } finally { setBusy(false) }
+    } catch (e) { toast({ title: 'خطا', description: e instanceof Error ? e.message : 'ذخیره‌سازی ناموفق بود', variant: 'destructive' }) }
+    finally { setBusy(false) }
   }
 
   async function addKb() {
     if (!newQ.trim() || !newA.trim()) { toast({ title: 'خطا', description: 'پرسش و پاسخ لازم است', variant: 'destructive' }); return }
-    await fetch('/api/knowledge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: newQ, answer: newA }) })
-    setNewQ(''); setNewA('')
-    load()
-    toast({ title: 'به پایگاه دانش اضافه شد ✓' })
+    setBusy(true)
+    try {
+      const res = await fetch('/api/knowledge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: newQ, answer: newA }) })
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) throw new Error(d.error ?? `خطای ${res.status}`)
+      setNewQ(''); setNewA('')
+      load()
+      toast({ title: 'به پایگاه دانش اضافه شد ✓' })
+    } catch (e) { toast({ title: 'خطا', description: e instanceof Error ? e.message : 'افزودن ناموفق بود', variant: 'destructive' }) }
+    finally { setBusy(false) }
   }
 
   async function delKb(id: string) {
-    await fetch(`/api/knowledge/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/knowledge/${id}`, { method: 'DELETE' })
+    if (!res.ok) { toast({ title: 'خطا', description: `حذف ناموفق بود (خطای ${res.status})`, variant: 'destructive' }); return }
     load()
+    toast({ title: 'از پایگاه دانش حذف شد' })
   }
 
   return (
@@ -166,7 +177,7 @@ export function SettingsSection() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Pill label={k.isActive ? 'فعال' : 'غیرفعال'} color={k.isActive ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-stone-100 text-stone-600 border-stone-200'} />
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => delKb(k.id)}><Trash2 className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" aria-label="حذف آیتم دانش" onClick={() => delKb(k.id)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </CardContent></Card>
             ))}

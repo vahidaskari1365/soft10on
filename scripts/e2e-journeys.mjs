@@ -537,6 +537,59 @@ await journey('J14 PATIENT: منوی مدیریتی ندارد و API مدیری
   await logout(page)
 })
 
+// ---------- J15: ماژول‌های باقی‌مانده — پایگاه دانش (عملیات واقعی)، گزارش‌ها، انبار، پرونده هوشمند ----------
+await journey('J15 تنظیمات: افزودن/حذف پایگاه دانش از UI با تأیید DB', async (page) => {
+  await loginDemo(page, 'مدیر کل')
+  await openSection(page, 'تنظیمات سامانه')
+  await page.locator('[role="tab"]:has-text("پایگاه دانش")').click()
+  await page.waitForTimeout(700)
+  const q = `Q-J15-${Date.now() % 100000} ساعات کاری شعبه؟`
+  await page.locator('input[placeholder*="ساعات کاری"]').fill(q)
+  await page.locator('textarea').last().fill('هر روز از ۹ صبح تا ۹ شب')
+  await page.locator('button:has-text("افزودن به دانش")').click()
+  await page.waitForTimeout(1300)
+  const inList = await page.locator(`text=${q}`).first().isVisible()
+  assert(inList, 'آیتم KB پس از افزودن در لیست UI ظاهر نشد')
+  const row = await db.knowledgeBase.findFirst({ where: { question: q } })
+  assert(row, 'آیتم KB در DB ثبت نشد')
+  // حذف همان آیتم از UI
+  await page.locator('.rounded-2xl.border', { hasText: q }).first().locator('button').last().click()
+  await page.waitForTimeout(1200)
+  const stillThere = await page.locator(`text=${q}`).first().isVisible().catch(() => false)
+  assert(!stillThere, 'آیتم KB پس از حذف هنوز در UI است')
+  const gone = await db.knowledgeBase.findFirst({ where: { question: q } })
+  assert(!gone, 'آیتم KB از DB حذف نشد')
+  await logout(page)
+})
+await journey('J15b گزارش‌ها: تب نوبت‌ها و انبار با دادهٔ واقعی + پرونده هوشمند', async (page) => {
+  await loginDemo(page, 'مدیر کل')
+  await openSection(page, 'گزارش‌ها')
+  await page.locator('[role="tab"]:has-text("نوبت‌ها")').click()
+  await page.waitForTimeout(1000)
+  const rep = await page.locator('body').innerText()
+  assert(rep.includes('گزارش') && /[\u06F0-\u06F9]/.test(rep), 'گزارش نوبت‌ها بدون دادهٔ عددی رندر شد')
+  await page.locator('[role="tab"]:has-text("انبار")').click()
+  await page.waitForTimeout(1000)
+  const inv = await page.locator('body').innerText()
+  assert(/انبار|موجودی|اقلام|هشدار/.test(inv) && !/Application error/.test(inv), 'تب انبار خالی یا خطا دارد')
+  // پرونده هوشمند: انتخاب بیمار از dropdown → رکوردها یا حالت خالی معنادار
+  await openSection(page, 'پرونده هوشمند')
+  await page.waitForTimeout(900)
+  const combo = page.locator('button[role="combobox"]').first()
+  if (await combo.isVisible().catch(() => false)) {
+    await combo.click()
+    await page.waitForTimeout(400)
+    const firstPatient = page.locator('[role="option"]').first()
+    if (await firstPatient.isVisible().catch(() => false)) {
+      await firstPatient.click()
+      await page.waitForTimeout(1200)
+    }
+  }
+  const rec = await page.locator('body').innerText()
+  assert(rec.length > 120 && !/Application error/.test(rec), 'پرونده هوشمند خالی یا خطا دارد')
+  await logout(page)
+})
+
 await browser.close()
 await db.$disconnect()
 const fails = results.filter((r) => !r.pass).length

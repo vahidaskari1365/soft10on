@@ -76,14 +76,14 @@ export function AppointmentsSection() {
     <div className="space-y-4">
       <SectionHeader title="نوبت‌ها و تقویم" subtitle="تقویم شمسی روزانه به تفکیک پزشک — کلیک روی نوبت برای تغییر وضعیت">
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" onClick={() => setDay(new Date(day.getTime() - 86400000))}>
+          <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" aria-label="روز قبل" onClick={() => setDay(new Date(day.getTime() - 86400000))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <div className="rounded-xl border bg-card px-4 py-1.5 text-center min-w-[150px]">
             <div className="text-sm font-bold">{formatJDate(day)}</div>
             <div className="text-[10px] text-muted-foreground">{weekdayName(day)}</div>
           </div>
-          <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" onClick={() => setDay(new Date(day.getTime() + 86400000))}>
+          <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" aria-label="روز بعد" onClick={() => setDay(new Date(day.getTime() + 86400000))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button variant="secondary" size="sm" className="rounded-xl text-xs" onClick={() => setDay(new Date())}>

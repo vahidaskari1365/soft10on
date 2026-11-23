@@ -19,6 +19,7 @@ type ServicePublic = { id: string; name: string; category: string; price: number
 
 export function PublicClinic({ branchCode }: { branchCode?: string }) {
   const [branches, setBranches] = useState<BranchPublic[]>([])
+  const [branchesFailed, setBranchesFailed] = useState(false)
   const [services, setServices] = useState<ServicePublic[]>([])
   const [selected, setSelected] = useState<string>('')
   const [form, setForm] = useState({ name: '', phone: '', serviceId: '', note: '' })
@@ -26,14 +27,20 @@ export function PublicClinic({ branchCode }: { branchCode?: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    fetch(`/api/branches?code=${encodeURIComponent(branchCode ?? '')}`).then((r) => r.json()).then((d) => {
-      const list = (d.branches ?? []) as BranchPublic[]
-      setBranches(list)
-      const initial = branchCode ? list.find((b) => b.code === branchCode) : list[0]
-      setSelected(initial?.id ?? '')
-    }).catch(() => {})
+  const loadBranches = useCallback(() => {
+    setBranchesFailed(false)
+    fetch(`/api/branches?code=${encodeURIComponent(branchCode ?? '')}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const d = await r.json()
+        const list = (d.branches ?? []) as BranchPublic[]
+        setBranches(list)
+        const initial = branchCode ? list.find((b) => b.code === branchCode) : list[0]
+        setSelected(initial?.id ?? '')
+      })
+      .catch(() => setBranchesFailed(true))
   }, [branchCode])
+  useEffect(loadBranches, [loadBranches])
   useEffect(() => {
     // خدمات و پزشکان عمومی فقط برای شعبهٔ انتخابی — بدون افشای سایر کلینیک‌ها
     if (!selected) return
@@ -102,12 +109,18 @@ export function PublicClinic({ branchCode }: { branchCode?: string }) {
               <h2 className="font-bold text-lg mb-1">درخواست نوبت</h2>
               <p className="text-xs text-muted-foreground mb-4">کمتر از یک دقیقه طول می‌کشد</p>
               <div className="space-y-3">
+                {branchesFailed ? (
+                  <button type="button" onClick={loadBranches} className="w-full text-xs text-rose-700 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
+                    بارگذاری شعبه‌ها ناموفق بود — تلاش دوباره
+                  </button>
+                ) : (
                 <div><Label>شعبه</Label>
                   <Select value={selected} onValueChange={setSelected}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
+                )}
                 <div><Label>نام و نام خانوادگی</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-xl" placeholder="مثلاً مینا کریمی" /></div>
                 <div><Label>شماره موبایل</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="rounded-xl" placeholder="۰۹۱۲..." dir="ltr" /></div>
                 <div><Label>خدمت موردنظر (اختیاری)</Label>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { PatientFormDialog } from './patient-form-dialog'
 import { Upload, Trash2, Pill as PillIcon, Download } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { SectionHeader, Pill, Avatar, EmptyState, LoadingBlock } from './bits'
+import { SectionHeader, Pill, Avatar, EmptyState, LoadingBlock, ErrorState } from './bits'
 import type { Appointment, PatientRow, ProductSale } from './types'
 import { APPOINTMENT_STATUS } from '@/lib/format'
 import { formatJDate, faDigits, formatDayRelative } from '@/lib/jalali'
@@ -80,6 +80,7 @@ const RECORD_TYPE: Record<string, string> = {
 
 export function PatientsSection() {
   const [patients, setPatients] = useState<PatientRow[] | null>(null)
+  const [listFailed, setListFailed] = useState(false)
   const [query, setQuery] = useState('')
   const [signal, setSignal] = useState<string>('all')
   const [selected, setSelected] = useState<PatientRow | null>(null)
@@ -88,13 +89,19 @@ export function PatientsSection() {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const { toast } = useToast()
 
-  const refreshList = () => {
-    fetch('/api/patients').then((r) => r.json()).then((j) => setPatients(j.patients ?? [])).catch(() => {})
-  }
-
-  useEffect(() => {
-    fetch('/api/patients').then((r) => r.json()).then((j) => setPatients(j.patients ?? [])).catch(() => {})
+  // شکست بارگذاری با «لیست خالی» اشتباه گرفته نمی‌شود — پیام خطا + تلاش دوباره
+  const refreshList = useCallback(() => {
+    setListFailed(false)
+    fetch('/api/patients')
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const j = await r.json()
+        setPatients(j.patients ?? [])
+      })
+      .catch(() => setListFailed(true))
   }, [])
+
+  useEffect(() => { refreshList() }, [refreshList])
 
   const openDetail = async (p: PatientRow) => {
     setSelected(p)
@@ -238,7 +245,9 @@ export function PatientsSection() {
         </Button>
       </div>
 
-      {!patients ? (
+      {listFailed ? (
+        <ErrorState onRetry={refreshList} />
+      ) : !patients ? (
         <LoadingBlock rows={6} />
       ) : filtered.length === 0 ? (
         <EmptyState text="بیماری با این شرایط پیدا نشد." />

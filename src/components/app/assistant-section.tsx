@@ -179,7 +179,7 @@ export function AssistantSection({
                 placeholder="پیام خود را بنویسید… (مثلاً: برای جرم‌گیری نوبت می‌خوام)"
                 className="rounded-xl text-sm"
               />
-              <Button size="icon" className="rounded-xl h-10 w-10 shrink-0" onClick={submitInput} disabled={thinking}>
+              <Button size="icon" aria-label="ارسال پیام" className="rounded-xl h-10 w-10 shrink-0" onClick={submitInput} disabled={thinking}>
                 <Send className="h-4 w-4 rotate-180" />
               </Button>
             </div>

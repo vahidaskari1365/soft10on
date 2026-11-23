@@ -379,7 +379,7 @@ function InvoiceCreateForm({ meta, branches, onDone, toast }: { meta: Meta | nul
             <Input type="number" min={1} value={r.qty} onChange={(e) => setRows((rs) => rs.map((x, xi) => (xi === i ? { ...x, qty: Math.max(1, Number(e.target.value) || 1) } : x)))} className="w-16 rounded-lg text-xs" title="تعداد" />
             <Input type="number" min={0} value={r.unitPrice} onChange={(e) => setRows((rs) => rs.map((x, xi) => (xi === i ? { ...x, unitPrice: Math.max(0, Number(e.target.value) || 0) } : x)))} className="w-28 rounded-lg text-xs" title="قیمت واحد" />
             <span className="text-xs text-muted-foreground w-24">{formatToman(r.qty * r.unitPrice)}</span>
-            {rows.length > 1 && <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => setRows((rs) => rs.filter((_, xi) => xi !== i))}><XCircle className="h-4 w-4" /></Button>}
+            {rows.length > 1 && <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" aria-label="حذف ردیف" onClick={() => setRows((rs) => rs.filter((_, xi) => xi !== i))}><XCircle className="h-4 w-4" /></Button>}
           </div>
         ))}
         <Button size="sm" variant="outline" className="rounded-xl" onClick={() => setRows((rs) => [...rs, { kind: 'SERVICE', refId: '', title: '', qty: 1, unitPrice: 0 }])}><Plus className="h-4 w-4" /> افزودن ردیف</Button>
@@ -1158,7 +1158,7 @@ function PurchaseForm({ products, onDone, toast }: { products: Product[]; onDone
           </Select>
           <Input type="number" min={1} value={r.qty} onChange={(e) => setRows((rs) => rs.map((x, xi) => (xi === i ? { ...x, qty: Math.max(1, Number(e.target.value) || 1) } : x)))} className="w-16 rounded-lg text-xs" />
           <Input type="number" min={0} value={r.unitPrice} onChange={(e) => setRows((rs) => rs.map((x, xi) => (xi === i ? { ...x, unitPrice: Math.max(0, Number(e.target.value) || 0) } : x)))} className="w-28 rounded-lg text-xs" />
-          {rows.length > 1 && <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => setRows((rs) => rs.filter((_, xi) => xi !== i))}><XCircle className="h-4 w-4" /></Button>}
+          {rows.length > 1 && <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" aria-label="حذف ردیف" onClick={() => setRows((rs) => rs.filter((_, xi) => xi !== i))}><XCircle className="h-4 w-4" /></Button>}
         </div>
       ))}
       <Button size="sm" variant="outline" className="rounded-xl" onClick={() => setRows((rs) => [...rs, { productId: '', qty: 1, unitPrice: 0 }])}><Plus className="h-4 w-4" /> افزودن قلم</Button>

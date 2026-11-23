@@ -5,7 +5,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { StatCard, SectionHeader, LoadingBlock, EmptyState, Pill, Avatar } from '../bits'
+import { StatCard, SectionHeader, LoadingBlock, EmptyState, ErrorState, Pill, Avatar } from '../bits'
+import { useToast } from '@/hooks/use-toast'
 import type { DoctorOverview } from '../types'
 import { APPOINTMENT_STATUS, TASK_PRIORITY, SOURCE_LABEL, millionsShort } from '@/lib/format'
 import { formatToman } from '@/lib/format'
@@ -20,27 +21,50 @@ import {
 
 export function DoctorSection() {
   const [data, setData] = useState<DoctorOverview | null>(null)
+  const [failed, setFailed] = useState(false)
   const [updating, setUpdating] = useState<string | null>(null)
+  const { toast } = useToast()
 
+  // بارگذاری با تفکیک حالت خطا از حالت خالی — شکست شبکه هیچ‌گاه اسکلت بی‌نهایت نمی‌سازد
   const load = useCallback(() => {
-    fetch('/api/doctor/overview').then((r) => r.json()).then((d) => setData(d.error ? null : d)).catch(() => setData(null))
+    setFailed(false)
+    fetch('/api/doctor/overview')
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const d: DoctorOverview & { error?: string } = await r.json()
+        if (!d || d.error) throw new Error('api')
+        setData(d)
+      })
+      .catch(() => {
+        setData(null)
+        setFailed(true)
+      })
   }, [])
   useEffect(load, [load])
 
   async function setStatus(id: string, status: string) {
     setUpdating(id)
     try {
-      await fetch(`/api/appointments/${id}`, {
+      const r = await fetch(`/api/appointments/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
+      const j: { error?: string } = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        toast({ title: 'ثبت وضعیت ناموفق بود', description: String(j.error ?? `خطای ${r.status}`), variant: 'destructive' })
+        return // داده را تازه نکن — وضعیت قبلی معتبر می‌ماند
+      }
+      toast({ title: status === 'DONE' ? 'نوبت به‌عنوان انجام‌شده ثبت شد' : 'عدم حضور بیمار ثبت شد' })
       load()
+    } catch {
+      toast({ title: 'ارتباط با سرور برقرار نشد', description: 'اتصال شبکه را بررسی کنید و دوباره تلاش کنید', variant: 'destructive' })
     } finally {
       setUpdating(null)
     }
   }
 
+  if (failed) return <ErrorState onRetry={load} />
   if (!data) return <LoadingBlock rows={5} />
 
   const doneToday = data.today.filter((a) => a.status === 'DONE').length
@@ -154,6 +178,9 @@ export function DoctorSection() {
 
         {/* ---------- بیماران من ---------- */}
         <TabsContent value="patients" className="mt-4">
+          {data.myPatients.length === 0 ? (
+            <EmptyState text="هنوز بیماری با شما ویزیت نداشته است" />
+          ) : (
           <Card className="rounded-2xl shadow-sm">
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -189,6 +216,7 @@ export function DoctorSection() {
               </div>
             </CardContent>
           </Card>
+          )}
         </TabsContent>
 
         {/* ---------- کارنامه مالی ---------- */}

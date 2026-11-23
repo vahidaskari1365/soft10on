@@ -147,7 +147,7 @@ export function AgentChatSection({
                   disabled={busy}
                   className="rounded-xl"
                 />
-                <Button type="submit" size="icon" className="rounded-xl shrink-0" disabled={busy || !input.trim()}>
+                <Button type="submit" size="icon" aria-label="ارسال" className="rounded-xl shrink-0" disabled={busy || !input.trim()}>
                   <Send className="h-4 w-4" />
                 </Button>
               </form>

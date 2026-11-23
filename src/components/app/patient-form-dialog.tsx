@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,14 +43,28 @@ export function PatientFormDialog({
   const [form, setForm] = useState({ ...empty })
   const [saving, setSaving] = useState(false)
   const [doctors, setDoctors] = useState<DoctorLite[]>([])
+  const [doctorsErr, setDoctorsErr] = useState(false)
   const [err, setErr] = useState('')
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // بارگذاری لیست پزشکان با بازخورد شکست و تلاش دوباره — نه شکست بی‌صدا
+  const loadDoctors = useCallback(() => {
+    setDoctorsErr(false)
+    fetch('/api/meta')
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const j: { doctors?: DoctorLite[] } = await r.json()
+        setDoctors(j.doctors ?? [])
+      })
+      .catch(() => setDoctorsErr(true))
+  }, [])
+  useEffect(loadDoctors, [loadDoctors])
+
   useEffect(() => {
     if (!open) return
     setErr('')
-    fetch('/api/meta').then((r) => r.json()).then((j) => setDoctors(j.doctors ?? [])).catch(() => {})
+    loadDoctors()
     if (editing) {
       const p = editing as Record<string, string | boolean | null>
       setForm({
@@ -79,21 +93,28 @@ export function PatientFormDialog({
     setErr('')
     if (!form.firstName.trim() || !form.lastName.trim()) { setErr('نام و نام خانوادگی الزامی است'); return }
     if (!/^09\d{9}$/.test(form.phone.trim())) { setErr('شماره موبایل معتبر نیست (09xxxxxxxxx)'); return }
+    if (saving) return // جلوگیری از ارسال دوباره
     setSaving(true)
-    const payload: Record<string, unknown> = { ...form }
-    if (!payload.birthYear) delete payload.birthYear
-    if (!payload.nationalId) payload.nationalId = null
-    const r = await fetch(editing ? `/api/patients/${editing.id}` : '/api/patients', {
-      method: editing ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    setSaving(false)
-    const j = await r.json().catch(() => ({}))
-    if (!r.ok) { setErr(String(j.error ?? 'خطا در ذخیره‌سازی')); return }
-    toast({ title: editing ? 'اطلاعات بیمار به‌روزرسانی شد' : `بیمار ثبت شد — پرونده ${faDigits(j.patient?.fileNo ?? '')}` })
-    setOpen(false)
-    onSaved()
+    try {
+      const payload: Record<string, unknown> = { ...form }
+      if (!payload.birthYear) delete payload.birthYear
+      if (!payload.nationalId) payload.nationalId = null
+      const r = await fetch(editing ? `/api/patients/${editing.id}` : '/api/patients', {
+        method: editing ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const j: { error?: string; patient?: { fileNo?: string } } = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(String(j.error ?? 'خطا در ذخیره‌سازی')); return }
+      toast({ title: editing ? 'اطلاعات بیمار به‌روزرسانی شد' : `بیمار ثبت شد — پرونده ${faDigits(j.patient?.fileNo ?? '')}` })
+      setOpen(false)
+      onSaved()
+    } catch {
+      // خطای شبکه — دادهٔ وارد‌شده حفظ می‌شود و دکمه باز می‌گردد
+      setErr('ارتباط با سرور برقرار نشد؛ اتصال را بررسی کنید و دوباره تلاش کنید')
+    } finally {
+      setSaving(false) // در هر حالت (موفق/خطا/شبکه) بازنشانی می‌شود
+    }
   }
 
   return (
@@ -143,6 +164,11 @@ export function PatientFormDialog({
               <select className={`w-full h-9 rounded-xl border bg-background px-2 text-xs ${FIELD}`} value={form.treatingDoctorId} onChange={set('treatingDoctorId')}>
                 <option value="">—</option>{doctors.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
+              {doctorsErr ? (
+                <button type="button" onClick={loadDoctors} className="mt-1 text-[11px] text-amber-700 underline underline-offset-2">
+                  بارگذاری لیست پزشکان ناموفق بود — تلاش دوباره
+                </button>
+              ) : null}
             </div>
             <div className="col-span-2 md:col-span-3"><Label>حساسیت‌های دارویی</Label><Input className={FIELD} value={form.allergies} onChange={set('allergies')} /></div>
             <div className="col-span-2 md:col-span-3"><Label>بیماری‌های زمینه‌ای</Label><Input className={FIELD} value={form.chronicNote} onChange={set('chronicNote')} /></div>

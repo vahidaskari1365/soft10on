@@ -1,6 +1,7 @@
 'use client'
 
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { KeyboardEvent, ReactNode } from 'react'
 
@@ -116,6 +117,20 @@ export function LoadingBlock({ rows = 3 }: { rows?: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="h-16 rounded-2xl bg-muted/60 animate-pulse" />
       ))}
+    </div>
+  )
+}
+
+/** حالت خطا با امکان تلاش دوباره — برای شکست بارگذاری داده از API */
+export function ErrorState({ text = 'بارگذاری اطلاعات ناموفق بود', onRetry }: { text?: string; onRetry?: () => void }) {
+  return (
+    <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
+      <div className="text-sm text-rose-700">{text}</div>
+      {onRetry ? (
+        <Button size="sm" variant="outline" className="mt-3 rounded-xl" onClick={onRetry}>
+          تلاش دوباره
+        </Button>
+      ) : null}
     </div>
   )
 }

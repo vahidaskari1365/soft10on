@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { StatCard, SectionHeader, Pill, LoadingBlock, Avatar } from './bits'
+import { StatCard, SectionHeader, Pill, LoadingBlock, ErrorState, Avatar } from './bits'
 import type { Appointment, MonthRow, TaskItem, TraceStep } from './types'
 import { APPOINTMENT_STATUS, SOURCE_LABEL, TASK_PRIORITY } from '@/lib/format'
 import { formatToman, millionsShort } from '@/lib/format'
@@ -50,11 +50,24 @@ interface DashData {
 export function DashboardSection({ onNavigate, quickKeys = [] }: { onNavigate: (key: string) => void; quickKeys?: string[] }) {
   const [data, setData] = useState<DashData | null>(null)
   const [tasks, setTasks] = useState<TaskItem[]>([])
+  const [failed, setFailed] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/dashboard').then((r) => r.json()).then(setData).catch(() => {})
-    fetch('/api/tasks').then((r) => r.json()).then((d) => setTasks(d.tasks ?? [])).catch(() => {})
+  const load = useCallback(() => {
+    setFailed(false)
+    fetch('/api/dashboard')
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        setData(await r.json())
+      })
+      .catch(() => {
+        setData(null)
+        setFailed(true)
+      })
+    fetch('/api/tasks').then((r) => r.json()).then((d) => setTasks(d.tasks ?? [])).catch(() => setTasks([]))
   }, [])
+  useEffect(load, [load])
+
+  if (failed) return <ErrorState onRetry={load} />
 
   if (!data) {
     return (
