@@ -31,7 +31,13 @@ const num = String(Date.now() % 10000000).padStart(7, '0')
 const mkHash = (p) => { const salt = randomBytes(8).toString('hex'); return `${salt}:${scryptSync(p, salt, 32).toString('hex')}` }
 const { PrismaClient } = await import('@prisma/client')
 const db = new PrismaClient({ log: [], datasources: { db: { url: loadTestDbUrl() } } })
-const day = (n, h) => { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n, h, 0, 0)) }
+// روز تست نباید جمعه بخورد (شعبهٔ پیش‌فرض جمعه تعطیل است → 400) — تست تقویم نیست و باید مستقل از روز اجرا باشد
+const day = (n, h) => {
+  const d = new Date()
+  const out = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n, h, 0, 0))
+  while (out.getUTCDay() === 5) out.setUTCDate(out.getUTCDate() + 1)
+  return out
+}
 
 // ————— زمینهٔ مشترک: کلینیک W با دو شعبه
 const superCookie = await login('super', '123456')

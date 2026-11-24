@@ -56,7 +56,13 @@ const cookieR2 = await login(r2.username, passR)
 record('ورود پذیرش‌های دو شعبه', !!cookieR1 && !!cookieR2)
 
 // نوبت‌های اولیه در دو شعبه (مستقیم با دیتابیس برای کنترل مطلق داده)
-const day = (n, h) => { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n, h, 0, 0)) }
+// روز تست نباید جمعه بخورد (شعبهٔ پیش‌فرض جمعه تعطیل است → 400) — تست تقویم نیست و باید مستقل از روز اجرا باشد
+const day = (n, h) => {
+  const d = new Date()
+  const out = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n, h, 0, 0))
+  while (out.getUTCDay() === 5) out.setUTCDate(out.getUTCDate() + 1)
+  return out
+}
 const slotBase = day(2, 10).getTime()
 const appt1 = await db.appointment.create({ data: { clinicId: clinic.id, branchId: br1.id, patientId: pat.id, doctorId: doc1.id, serviceId: svc.id, start: new Date(slotBase), status: 'PENDING', price: svc.price } })
 const appt2 = await db.appointment.create({ data: { clinicId: clinic.id, branchId: br2.id, patientId: pat.id, doctorId: doc2.id, serviceId: svc.id, start: new Date(slotBase + 3_600_000), status: 'PENDING', price: svc.price } })
