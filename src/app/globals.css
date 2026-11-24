@@ -155,6 +155,9 @@
 .scroll-thin::-webkit-scrollbar-track {
   background: transparent;
 }
+.dark .scroll-thin::-webkit-scrollbar-thumb {
+  background: #3f454b;
+}
 
 /* ————— 10on brand utilities ————— */
 
@@ -181,13 +184,16 @@
   background-size: 34px 34px;
 }
 
-/* میکرو-انیمیشن برخواستن کارت */
+/* میکرو-انیمیشن برخواستن کارت — سایهٔ خنثی نرم برای هر دو تم */
 .card-hover {
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px -14px rgb(2 132 199 / 0.22);
+  box-shadow: 0 14px 34px -18px rgb(15 23 42 / 0.28);
+}
+.dark .card-hover:hover {
+  box-shadow: 0 14px 34px -18px rgb(0 0 0 / 0.55);
 }
 
 /* حباب گرادیانت متحرک */

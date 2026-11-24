@@ -12,13 +12,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SectionHeader, Pill, Avatar, LoadingBlock } from './bits'
 import type { Appointment, Doctor, PatientLite, Service } from './types'
 import { APPOINTMENT_STATUS, SOURCE_LABEL, formatToman } from '@/lib/format'
-import { formatJDate, formatTime, weekdayName, faDigits } from '@/lib/jalali'
-import { ChevronRight, ChevronLeft, Plus, CalendarDays } from 'lucide-react'
+import { formatJDate, formatTime, weekdayName, faDigits, jMonthKey, shiftJMonth, keyToLabel, monthKeyStart, monthKeyEnd, jalaaliMonthLength } from '@/lib/jalali'
+import { ChevronRight, ChevronLeft, Plus, CalendarDays, CalendarRange } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 const HOUR_H = 56 // px per hour
 const START_H = 9
 const END_H = 20
+
+const MONTH_WEEKDAYS = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه']
+
+/** استیکرهای رنگی نمای ماهانه — یک رنگ به ازای هر وضعیت نوبت */
+const STICKER_STYLES: Record<string, { dot: string; chip: string; label: string }> = {
+  PENDING: { dot: 'bg-amber-500', chip: 'bg-amber-100 text-amber-800 border-amber-200', label: 'در انتظار' },
+  CONFIRMED: { dot: 'bg-emerald-500', chip: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'تأییدشده' },
+  DONE: { dot: 'bg-violet-500', chip: 'bg-violet-100 text-violet-800 border-violet-200', label: 'انجام‌شده' },
+  CANCELLED: { dot: 'bg-stone-400', chip: 'bg-stone-100 text-stone-600 border-stone-200', label: 'لغو' },
+  NO_SHOW: { dot: 'bg-rose-500', chip: 'bg-rose-100 text-rose-800 border-rose-200', label: 'غایب' },
+}
 
 function isoDay(d: Date) {
   return d.toISOString().slice(0, 10)
@@ -26,7 +37,10 @@ function isoDay(d: Date) {
 
 export function AppointmentsSection() {
   const [day, setDay] = useState<Date>(new Date())
+  const [view, setView] = useState<'day' | 'month'>('day')
+  const [monthKey, setMonthKey] = useState(jMonthKey(new Date()))
   const [appts, setAppts] = useState<Appointment[] | null>(null)
+  const [monthAppts, setMonthAppts] = useState<Appointment[] | null>(null)
   const [doctors, setDoctors] = useState<Doctor[]>([])
   const [patients, setPatients] = useState<PatientLite[]>([])
   const [services, setServices] = useState<Service[]>([])
@@ -39,6 +53,17 @@ export function AppointmentsSection() {
     const j = await r.json()
     setAppts(j.appointments ?? [])
   }, [])
+
+  const loadMonth = useCallback(async (key: string) => {
+    setMonthAppts(null)
+    const r = await fetch(`/api/appointments?from=${monthKeyStart(key).toISOString()}&to=${monthKeyEnd(key).toISOString()}`)
+    const j = await r.json()
+    setMonthAppts(j.appointments ?? [])
+  }, [])
+
+  useEffect(() => {
+    if (view === 'month') loadMonth(monthKey)
+  }, [view, monthKey, loadMonth])
 
   useEffect(() => {
     load(day)
@@ -74,21 +99,61 @@ export function AppointmentsSection() {
 
   return (
     <div className="space-y-4">
-      <SectionHeader title="نوبت‌ها و تقویم" subtitle="تقویم شمسی روزانه به تفکیک پزشک — کلیک روی نوبت برای تغییر وضعیت">
+      <SectionHeader
+        title="نوبت‌ها و تقویم"
+        subtitle={
+          view === 'day'
+            ? 'تقویم شمسی روزانه به تفکیک پزشک — کلیک روی نوبت برای تغییر وضعیت'
+            : 'نمای ماهانه — هر روزی که نوبت ثبت شده استیکرهای رنگی وضعیت‌ها را دارد؛ کلیک روی روز، نمای روزانه را باز می‌کند'
+        }
+      >
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" aria-label="روز قبل" onClick={() => setDay(new Date(day.getTime() - 86400000))}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <div className="rounded-xl border bg-card px-4 py-1.5 text-center min-w-[150px]">
-            <div className="text-sm font-bold">{formatJDate(day)}</div>
-            <div className="text-[10px] text-muted-foreground">{weekdayName(day)}</div>
+          {/* toggle روز / ماه */}
+          <div className="flex rounded-xl border bg-card p-0.5" role="tablist" aria-label="حالت تقویم">
+            {([['day', 'روز', CalendarDays], ['month', 'ماه', CalendarRange]] as const).map(([v, label, Icon]) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${view === v ? 'bg-linear-to-l from-sky-500 to-teal-500 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                <Icon className="h-3.5 w-3.5" /> {label}
+              </button>
+            ))}
           </div>
-          <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" aria-label="روز بعد" onClick={() => setDay(new Date(day.getTime() + 86400000))}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="secondary" size="sm" className="rounded-xl text-xs" onClick={() => setDay(new Date())}>
-            امروز
-          </Button>
+          {view === 'day' ? (
+            <>
+              <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" aria-label="روز قبل" onClick={() => setDay(new Date(day.getTime() - 86400000))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <div className="rounded-xl border bg-card px-4 py-1.5 text-center min-w-[150px]">
+                <div className="text-sm font-bold">{formatJDate(day)}</div>
+                <div className="text-[10px] text-muted-foreground">{weekdayName(day)}</div>
+              </div>
+              <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" aria-label="روز بعد" onClick={() => setDay(new Date(day.getTime() + 86400000))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="secondary" size="sm" className="rounded-xl text-xs" onClick={() => { setDay(new Date()); setMonthKey(jMonthKey(new Date())) }}>
+                امروز
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" aria-label="ماه قبل" onClick={() => setMonthKey((k) => shiftJMonth(k, -1))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <div className="rounded-xl border bg-card px-4 py-1.5 text-center min-w-[130px]">
+                <div className="text-sm font-bold">{keyToLabel(monthKey)}</div>
+              </div>
+              <Button variant="outline" size="icon" className="rounded-xl h-9 w-9" aria-label="ماه بعد" onClick={() => setMonthKey((k) => shiftJMonth(k, 1))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="secondary" size="sm" className="rounded-xl text-xs" onClick={() => { setMonthKey(jMonthKey(new Date())) }}>
+                این ماه
+              </Button>
+            </>
+          )}
         </div>
         <AddAppointmentDialog
           day={day}
@@ -97,7 +162,7 @@ export function AppointmentsSection() {
           services={services}
           open={open}
           setOpen={setOpen}
-          onDone={() => load(day)}
+          onDone={() => { load(day); if (view === 'month') loadMonth(monthKey) }}
           toast={toast}
         />
       </SectionHeader>
@@ -109,6 +174,7 @@ export function AppointmentsSection() {
         ))}
       </div>
 
+      {view === 'day' ? (
       <Card className="rounded-2xl overflow-hidden">
         <CardContent className="p-0">
           {!appts ? (
@@ -163,6 +229,117 @@ export function AppointmentsSection() {
           )}
         </CardContent>
       </Card>
+      ) : (
+        <Card className="rounded-2xl overflow-hidden">
+          <CardContent className="p-4">
+            {!monthAppts ? (
+              <LoadingBlock rows={5} />
+            ) : (
+              <MonthGrid
+                monthKey={monthKey}
+                appts={monthAppts}
+                today={new Date()}
+                onPick={(d) => { setDay(d); setView('day') }}
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+function MonthGrid({
+  monthKey, appts, today, onPick,
+}: {
+  monthKey: string
+  appts: Appointment[]
+  today: Date
+  onPick: (d: Date) => void
+}) {
+  const start = monthKeyStart(monthKey)
+  const [jy, jm] = monthKey.split('-').map(Number)
+  const len = jalaaliMonthLength(jy, jm)
+  const offset = (start.getUTCDay() + 1) % 7 // شنبه = ستون ۰
+  const todayIso = isoDay(today)
+
+  const byDay = useMemo(() => {
+    const m = new Map<string, Record<string, number>>()
+    for (const a of appts) {
+      const k = a.start.slice(0, 10)
+      const rec = m.get(k) ?? {}
+      rec[a.status] = (rec[a.status] ?? 0) + 1
+      m.set(k, rec)
+    }
+    return m
+  }, [appts])
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="text-xs text-muted-foreground">{faDigits(appts.length)} نوبت در این ماه</div>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(STICKER_STYLES).map(([k, s]) => (
+            <span key={k} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className={`h-2 w-2 rounded-full ${s.dot}`} /> {s.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto scroll-thin">
+        <div className="grid grid-cols-7 gap-1.5 min-w-[672px]">
+          {MONTH_WEEKDAYS.map((wd, i) => (
+            <div key={wd} className={`text-center text-[10px] font-semibold py-1 rounded-lg ${i === 6 ? 'text-rose-500' : 'text-muted-foreground'}`}>{wd}</div>
+          ))}
+          {Array.from({ length: offset }, (_, i) => (
+            <div key={`pad-${i}`} />
+          ))}
+          {Array.from({ length: len }, (_, i) => {
+            const d = new Date(start.getTime() + i * 86400000)
+            const iso = isoDay(d)
+            const rec = byDay.get(iso)
+            const count = rec ? Object.values(rec).reduce((s, n) => s + n, 0) : 0
+            const isToday = iso === todayIso
+            const isFri = d.getUTCDay() === 5
+            return (
+              <button
+                key={iso}
+                onClick={() => onPick(d)}
+                className={`text-right rounded-xl border p-2 min-h-[86px] transition-colors card-hover outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+                  isToday
+                    ? 'border-sky-400 ring-2 ring-sky-300/50 bg-sky-50/40'
+                    : isFri
+                      ? 'bg-muted/30 border-border/70'
+                      : 'bg-card border-border'
+                } hover:border-sky-300`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-bold ${isToday ? 'text-sky-700' : isFri ? 'text-rose-500' : ''}`}>{faDigits(i + 1)}</span>
+                  {count > 0 ? (
+                    <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-[9px] font-bold ${isToday ? 'bg-sky-500 text-white' : 'bg-muted text-muted-foreground'}`}>
+                      {faDigits(count)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {rec
+                    ? Object.entries(rec).map(([st, n]) => {
+                        const s = STICKER_STYLES[st]
+                        if (!s) return null
+                        return (
+                          <span key={st} className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-px text-[9px] font-semibold ${s.chip}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+                            {faDigits(n)}
+                          </span>
+                        )
+                      })
+                    : null}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }

@@ -66,10 +66,7 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
 
         <div className="relative">
           <div className="flex items-center gap-3">
-            <span className="inline-flex h-13 w-13 items-center justify-center rounded-2xl bg-white/10 backdrop-blur border border-white/15 p-1.5">
-              { }
-              <img src="/10on-icon.svg" alt="لوگوی 10on" className="h-10 w-10" />
-            </span>
+            <img src="/10on-logo.png" alt="لوگوی 10on" className="h-12 w-auto" />
             <div>
               <div className="text-3xl font-extrabold tracking-tight leading-none" dir="ltr">
                 <span className="brand-gradient-text">10on</span>

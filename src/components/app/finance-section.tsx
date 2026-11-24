@@ -1297,8 +1297,8 @@ export function FinanceSection() {
         <TabsList className="rounded-xl bg-muted flex-wrap h-auto">
           <TabsTrigger value="report" className="rounded-lg text-xs md:text-sm">داشبورد مالی</TabsTrigger>
           <TabsTrigger value="invoices" className="rounded-lg text-xs md:text-sm">فاکتورها</TabsTrigger>
-          <TabsTrigger value="ledger" className="rounded-lg text-xs md:text-sm">دفتر روزنه</TabsTrigger>
-          <TabsTrigger value="journal" className="rounded-lg text-xs md:text-sm">دفتر کل و تراز</TabsTrigger>
+          <TabsTrigger value="ledger" className="rounded-lg text-xs md:text-sm">دریافت و پرداخت</TabsTrigger>
+          <TabsTrigger value="journal" className="rounded-lg text-xs md:text-sm">دفتر روزنامه و تراز</TabsTrigger>
           <TabsTrigger value="cash" className="rounded-lg text-xs md:text-sm">صندوق و بانک</TabsTrigger>
           <TabsTrigger value="checks" className="rounded-lg text-xs md:text-sm">چک‌ها</TabsTrigger>
           <TabsTrigger value="payroll" className="rounded-lg text-xs md:text-sm">حقوق و کارانه</TabsTrigger>
@@ -1328,16 +1328,23 @@ type JournalLineUI = { id: string; debit: number; credit: number; detail?: strin
 type JournalEntryUI = { id: string; number: number; date: string; memo: string; refType?: string; status: string; lines: JournalLineUI[]; createdBy?: { fullName: string } }
 type TrialRow = { code: string; name: string; type: string; debit: number; credit: number }
 
-/** دفتر کل (اسناد دوبل) + تراز آزمایشی — داده واقعی از API حسابداری */
+type AccountLite = { code: string; name: string; type: string }
+type AccountStatementRow = { id: string; date: string; number: number; memo: string; refType?: string; detail?: string; debit: number; credit: number; balance: number }
+
+/** دفتر روزنامه (اسناد دوبل) + ثبت سند دستی + دفتر معین + تراز آزمایشی — داده واقعی از API حسابداری */
 function JournalTab() {
   const [entries, setEntries] = useState<JournalEntryUI[] | null>(null)
   const [trial, setTrial] = useState<{ rows: TrialRow[]; debit: number; credit: number; balanced: boolean } | null>(null)
+  const [accounts, setAccounts] = useState<AccountLite[]>([])
   const [open, setOpen] = useState<string | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     fetch('/api/ledger?view=journal&take=50').then((r) => r.json()).then((j) => setEntries(j.entries ?? [])).catch(() => setEntries([]))
     fetch('/api/ledger?view=trial').then((r) => r.json()).then((j) => setTrial({ rows: j.trialBalance ?? [], debit: j.debit ?? 0, credit: j.credit ?? 0, balanced: j.balanced ?? false })).catch(() => setTrial(null))
-  }, [])
+    fetch('/api/ledger?view=accounts').then((r) => r.json()).then((j) => setAccounts(j.accounts ?? [])).catch(() => {})
+  }, [reload])
 
   return (
     <div className="space-y-4">
@@ -1347,6 +1354,18 @@ function JournalTab() {
           <div className="text-xs" dir="ltr">Dr: {trial.debit.toLocaleString('fa-IR')} · Cr: {trial.credit.toLocaleString('fa-IR')}</div>
         </div>
       ) : null}
+
+      {/* ابزار حسابداری: ثبت سند دستی + دفتر معین */}
+      <div className="rounded-2xl border bg-card p-3 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="text-xs font-bold">دفتر معین — گردش و ماندهٔ هر حساب</div>
+          <Button size="sm" className="rounded-xl text-xs" onClick={() => setFormOpen(true)}>
+            <Plus className="h-4 w-4 ml-1" /> ثبت سند دستی
+          </Button>
+        </div>
+        <AccountStatement accounts={accounts} reloadKey={reload} />
+      </div>
+
       <div className="rounded-2xl border overflow-hidden">
         <div className="bg-muted/60 px-4 py-2 text-xs font-bold">اسناد حسابداری (دفتر روزنامه)</div>
         {!entries ? <LoadingBlock rows={4} /> : entries.length === 0 ? <EmptyState text="سندی ثبت نشده است." /> : (
@@ -1397,6 +1416,195 @@ function JournalTab() {
           </div>
         </div>
       ) : null}
+
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="rounded-2xl max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>ثبت سند حسابداری دستی</DialogTitle></DialogHeader>
+          <JournalEntryForm accounts={accounts} onDone={() => { setFormOpen(false); setReload((r) => r + 1) }} />
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+/** دفتر معین یک حساب — گردش با ماندهٔ تجمعی */
+function AccountStatement({ accounts, reloadKey }: { accounts: AccountLite[]; reloadKey: number }) {
+  const [code, setCode] = useState('')
+  const [meta, setMeta] = useState<{ code: string; name: string } | null>(null)
+  const [rows, setRows] = useState<AccountStatementRow[] | null>(null)
+
+  useEffect(() => {
+    if (!code) { setRows(null); setMeta(null); return }
+    fetch(`/api/ledger?view=account&code=${encodeURIComponent(code)}`)
+      .then((r) => r.json())
+      .then((j) => { setRows(j.rows ?? []); setMeta(j.account ?? null) })
+      .catch(() => setRows([]))
+  }, [code, reloadKey])
+
+  return (
+    <div className="space-y-2">
+      <Select value={code} onValueChange={setCode}>
+        <SelectTrigger className="w-full md:w-80 rounded-xl text-sm"><SelectValue placeholder="حساب را انتخاب کنید" /></SelectTrigger>
+        <SelectContent className="max-h-72">
+          {accounts.map((a) => (
+            <SelectItem key={a.code} value={a.code}>{faDigits(a.code)} — {a.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {code && (rows === null ? (
+        <LoadingBlock rows={3} />
+      ) : rows.length === 0 ? (
+        <EmptyState text="گردشی برای این حساب ثبت نشده است" />
+      ) : (
+        <>
+          <div className="text-[11px] text-muted-foreground">گردش حساب {meta?.code ? faDigits(meta.code) : ''} — {meta?.name} ({faDigits(rows.length)} ردیف؛ مانده = بدهکار − بستانکار)</div>
+          <div className="overflow-x-auto scroll-thin rounded-xl border">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="bg-muted/30 text-muted-foreground">
+                  <th className="px-3 py-1.5 text-right">تاریخ</th>
+                  <th className="px-3 py-1.5 text-right">سند</th>
+                  <th className="px-3 py-1.5 text-right">شرح</th>
+                  <th className="px-3 py-1.5 text-left">بدهکار</th>
+                  <th className="px-3 py-1.5 text-left">بستانکار</th>
+                  <th className="px-3 py-1.5 text-left">مانده</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-t">
+                    <td className="px-3 py-1.5 whitespace-nowrap">{formatJDate(new Date(r.date))}</td>
+                    <td className="px-3 py-1.5" dir="ltr">{faDigits(r.number)}</td>
+                    <td className="px-3 py-1.5 max-w-[240px] truncate">{r.memo}{r.detail ? ` — ${r.detail}` : ''}</td>
+                    <td className="px-3 py-1.5 text-left" dir="ltr">{r.debit ? r.debit.toLocaleString('fa-IR') : '—'}</td>
+                    <td className="px-3 py-1.5 text-left" dir="ltr">{r.credit ? r.credit.toLocaleString('fa-IR') : '—'}</td>
+                    <td className="px-3 py-1.5 text-left font-semibold" dir="ltr">{r.balance.toLocaleString('fa-IR')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ))}
+    </div>
+  )
+}
+
+/** فرم ثبت سند دوبل دستی — کنترل تراز زنده، فقط مدیر اجازهٔ POST دارد */
+function JournalEntryForm({ accounts, onDone }: { accounts: AccountLite[]; onDone: () => void }) {
+  const { toast } = useToast()
+  const [memo, setMemo] = useState('')
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [rows, setRows] = useState([
+    { code: '', debit: '', credit: '', detail: '' },
+    { code: '', debit: '', credit: '', detail: '' },
+  ])
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const debitSum = rows.reduce((s, r) => s + (Math.round(Number(r.debit)) || 0), 0)
+  const creditSum = rows.reduce((s, r) => s + (Math.round(Number(r.credit)) || 0), 0)
+  const balanced = debitSum > 0 && debitSum === creditSum
+
+  const setRow = (i: number, patch: Partial<{ code: string; debit: string; credit: string; detail: string }>) =>
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+
+  const submit = async () => {
+    setErr('')
+    if (!memo.trim()) { setErr('شرح سند لازم است'); return }
+    if (!balanced) { setErr('سند باید تراز باشد — جمع بدهکار و بستانکار برابر باشد'); return }
+    const lines = rows
+      .filter((r) => r.code && (Number(r.debit) || Number(r.credit)))
+      .map((r) => ({
+        code: r.code,
+        debit: Math.round(Number(r.debit)) || 0,
+        credit: Math.round(Number(r.credit)) || 0,
+        detail: r.detail.trim() || undefined,
+      }))
+    if (lines.length < 2) { setErr('حداقل دو آرتیکل لازم است'); return }
+    setBusy(true)
+    const res = await fetch('/api/ledger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memo: memo.trim(), date: new Date(`${date}T09:00:00.000Z`).toISOString(), lines }),
+    })
+    const j = (await res.json().catch(() => ({}))) as { error?: string; number?: number }
+    setBusy(false)
+    if (res.ok) {
+      toast({ title: 'سند حسابداری ثبت شد', description: j.number ? `شمارهٔ سند: ${faDigits(j.number)}` : undefined })
+      onDone()
+    } else {
+      setErr(String(j.error ?? 'ثبت سند ناموفق بود'))
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_160px] gap-2">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">شرح سند</label>
+          <Input className="rounded-xl mt-1" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="مثلاً: تعدیل کارانهٔ پزشکان" />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">تاریخ سند</label>
+          <Input type="date" dir="ltr" className="rounded-xl mt-1 text-left" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="hidden md:grid grid-cols-[1.2fr_1fr_1fr_1.2fr_36px] gap-2 text-[10px] text-muted-foreground px-1">
+          <span>حساب</span><span>بدهکار (تومان)</span><span>بستانکار (تومان)</span><span>توضیح</span><span />
+        </div>
+        {rows.map((r, i) => (
+          <div key={i} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_1fr_1.2fr_36px] gap-2">
+            <Select value={r.code} onValueChange={(v) => setRow(i, { code: v === '—' ? '' : v })}>
+              <SelectTrigger className="rounded-xl text-xs"><SelectValue placeholder="انتخاب حساب" /></SelectTrigger>
+              <SelectContent className="max-h-64">
+                <SelectItem value="—">—</SelectItem>
+                {accounts.map((a) => (
+                  <SelectItem key={a.code} value={a.code}>{faDigits(a.code)} — {a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              className="rounded-xl text-xs" dir="ltr"
+              value={r.debit}
+              onChange={(e) => setRow(i, { debit: e.target.value.replace(/\D/g, ''), credit: e.target.value ? '' : r.credit })}
+              placeholder="0"
+            />
+            <Input
+              className="rounded-xl text-xs" dir="ltr"
+              value={r.credit}
+              onChange={(e) => setRow(i, { credit: e.target.value.replace(/\D/g, ''), debit: e.target.value ? '' : r.debit })}
+              placeholder="0"
+            />
+            <Input className="rounded-xl text-xs" value={r.detail} onChange={(e) => setRow(i, { detail: e.target.value })} placeholder="اختیاری" />
+            <button
+              className="hidden md:inline-flex items-center justify-center rounded-xl border text-muted-foreground hover:text-red-600 hover:border-red-200 transition-colors"
+              onClick={() => setRows((rs) => (rs.length > 2 ? rs.filter((_, idx) => idx !== i) : rs))}
+              disabled={rows.length <= 2}
+              title="حذف آرتیکل"
+              aria-label="حذف آرتیکل"
+            >
+              <XCircle className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+        <Button variant="outline" size="sm" className="rounded-xl text-xs" onClick={() => setRows((rs) => [...rs, { code: '', debit: '', credit: '', detail: '' }])}>
+          <Plus className="h-3.5 w-3.5 ml-1" /> آرتیکل جدید
+        </Button>
+      </div>
+
+      <div className={`rounded-xl border px-3 py-2 flex items-center justify-between text-xs ${balanced ? 'bg-emerald-50/60 border-emerald-200 text-emerald-700' : 'bg-muted/50 border-border text-muted-foreground'}`}>
+        <span dir="ltr">Dr: {debitSum.toLocaleString('fa-IR')} · Cr: {creditSum.toLocaleString('fa-IR')}</span>
+        <span className="font-bold">{balanced ? 'تراز ✓' : 'نامتراز'}</span>
+      </div>
+
+      {err ? <div className="text-xs text-rose-600 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2">{err}</div> : null}
+      <Button className="w-full rounded-xl" onClick={submit} disabled={busy}>
+        {busy ? 'در حال ثبت…' : 'ثبت سند'}
+      </Button>
+      <p className="text-[11px] text-muted-foreground">ثبت سند دستی فقط برای مدیر مجاز است. اسناد فاکتور، پرداخت، حقوق و خرید به‌صورت خودکار و تراز ثبت می‌شوند — سند دستی برای تعدیل‌ها و اصلاحات است.</p>
     </div>
   )
 }

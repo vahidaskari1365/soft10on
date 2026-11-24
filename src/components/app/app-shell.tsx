@@ -144,9 +144,12 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
       >
         <div className={cn('p-5 border-b border-sidebar-border/80', collapsed && 'px-3')}>
           <div className={cn('flex items-center gap-3', collapsed && 'justify-center')}>
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-sky-400 via-sky-500 to-teal-500 shadow-lg shadow-sky-500/25">
-              <img src="/10on-icon.svg" alt="لوگوی 10on" className="h-7 w-7" aria-hidden="true" />
-            </span>
+            <img
+              src="/10on-logo.png"
+              alt="لوگوی 10on"
+              className={cn('w-auto shrink-0', collapsed ? 'h-9' : 'h-8')}
+              aria-hidden="true"
+            />
             {!collapsed && (
               <div className="min-w-0">
                 <div className="text-xl font-extrabold leading-none tracking-tight" dir="ltr">
@@ -218,9 +221,8 @@ export function AppShell({ initialUser }: { initialUser: SessionUser | null }) {
         <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border">
           <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-sky-400 to-teal-500 shadow-md shadow-sky-500/20">
-                <img src="/10on-icon.svg" alt="10on" className="h-5.5 w-5.5" aria-hidden="true" />
-              </span>
+              <img src="/10on-logo.png" alt="10on" className="h-6 w-auto dark:hidden" aria-hidden="true" />
+              <img src="/10on-logo-light.png" alt="10on" className="hidden h-6 w-auto dark:block" aria-hidden="true" />
               <div className="min-w-0">
                 <div className="font-bold text-sm md:text-base truncate">
                   کلینیک دندان‌پزشکی لبخند مهر

@@ -89,11 +89,18 @@ async function journey(name, fn) {
   if (FILTER && !name.startsWith(FILTER)) return
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 } })
   const page = await ctx.newPage()
+  // تشخیص شکست: خطاهای کنسول مرورگر + اسکرین‌شات لحظهٔ خطا در /tmp
+  const consoleErrors = []
+  page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 220)) })
+  page.on('pageerror', (e) => consoleErrors.push('PAGEERROR: ' + String(e).slice(0, 300)))
   try {
     await fn(page)
     record(name, true)
   } catch (e) {
-    record(name, false, String(e).slice(0, 420).replace(/\n[\s\S]*call log[\s\S]*/, ""))
+    const shot = `/tmp/journey-${name.replace(/[^A-Za-z0-9]/g, '-').slice(0, 20)}.png`
+    await page.screenshot({ path: shot }).catch(() => {})
+    const extra = consoleErrors.length ? ` | console: ${consoleErrors.slice(0, 3).join(' ~ ')}` : ''
+    record(name, false, String(e).slice(0, 420).replace(/\n[\s\S]*call log[\s\S]*/, "") + extra + ` | shot=${shot}`)
   } finally {
     await ctx.close()
   }
@@ -127,6 +134,7 @@ await journey('J2 ایجاد/جست‌وجو/ویرایش بیمار از UI', a
   await page.locator('button:has-text("بیمار جدید")').first().click()
   const dlg = page.locator('[role="dialog"]')
   await dlg.waitFor({ state: 'visible', timeout: 8000 })
+  console.log('J4 DEBUG first dialog OK')
   await page.waitForTimeout(700)
   await dlg.locator('input').nth(0).fill('تستی')
   await dlg.locator('input').nth(1).fill(marker)
@@ -267,7 +275,8 @@ await journey('J4 صدور فاکتور و ثبت پرداخت از UI', async (
   assert(invAfter > invBefore, `فاکتور در DB ثبت نشد (${invBefore}→${invAfter}) POST=${invPost}`)
   const inv = await db.invoice.findFirst({ orderBy: { date: 'desc' } })
   // پرداخت از UI: یافتن ردیف فاکتور و دکمهٔ دریافت
-  const payBtn = page.locator('button:has-text("دریافت"), button:has-text("پرداخت"), button:has-text("تسویه")').first()
+  // انتخابگر به داخل tabpanel اسکوپ می‌شود تا با تب‌های هم‌نام (مثل «دریافت و پرداخت») تصادم نکند
+  const payBtn = page.locator('[role="tabpanel"] button:has-text("دریافت"), [role="tabpanel"] button:has-text("پرداخت"), [role="tabpanel"] button:has-text("تسویه")').first()
   if (await payBtn.count()) {
     await payBtn.click()
     const pdlg = page.locator('[role="dialog"]')

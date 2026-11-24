@@ -23,6 +23,34 @@ export const GET = tenantHandler('ADMIN', 'RECEPTIONIST', 'ACCOUNTANT')(async (s
     const credit = tb.reduce((s, r) => s + r.credit, 0)
     return NextResponse.json({ trialBalance: tb, debit, credit, balanced: debit === credit })
   }
+  if (view === 'account') {
+    // دفتر معین — گردش یک حساب با ماندهٔ تجمعی (فقط اسناد POSTED)
+    const code = (searchParams.get('code') ?? '').trim()
+    const acc = await db.ledgerAccount.findUnique({ where: { code } })
+    if (!acc) return NextResponse.json({ error: 'حساب یافت نشد' }, { status: 404 })
+    const lines = await db.journalLine.findMany({
+      where: { accountId: acc.id, entry: { clinicId: session.clinicId, status: 'POSTED' } },
+      include: { entry: { select: { number: true, date: true, memo: true, refType: true } } },
+      orderBy: [{ entry: { date: 'asc' } }, { entryId: 'asc' }],
+      take: 400,
+    })
+    let balance = 0
+    const rows = lines.map((l) => {
+      balance += l.debit - l.credit
+      return {
+        id: l.id,
+        date: l.entry.date,
+        number: l.entry.number,
+        memo: l.entry.memo,
+        refType: l.entry.refType,
+        detail: l.detail,
+        debit: l.debit,
+        credit: l.credit,
+        balance,
+      }
+    })
+    return NextResponse.json({ account: { code: acc.code, name: acc.name, type: acc.type }, rows })
+  }
   // دفتر روزنامه — آخرین اسناد با آرتیکل‌ها
   const take = Math.min(100, Number(searchParams.get('take') ?? 30))
   const entries = await db.journalEntry.findMany({

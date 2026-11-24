@@ -10,6 +10,23 @@ export const GET = tenantHandler()(async (session, request) => {
   const { searchParams } = new URL(request.url)
   const date = searchParams.get('date')
 
+  // بازهٔ دلخواه (نمای ماهانهٔ تقویم) — from/to به‌صورت ISO UTC
+  const from = searchParams.get('from')
+  const to = searchParams.get('to')
+  if (from && to) {
+    const start = new Date(from)
+    const end = new Date(to)
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
+      return NextResponse.json({ error: 'بازهٔ زمانی نامعتبر است' }, { status: 400 })
+    }
+    const appts = await db.appointment.findMany({
+      where: { start: { gte: start, lt: end } },
+      include: { patient: true, doctor: true, service: true },
+      orderBy: { start: 'asc' },
+    })
+    return NextResponse.json({ appointments: appts })
+  }
+
   if (date) {
     const start = new Date(`${date}T00:00:00.000Z`)
     const end = new Date(start.getTime() + 86400000)
