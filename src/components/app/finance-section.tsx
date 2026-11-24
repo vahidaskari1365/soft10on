@@ -59,7 +59,7 @@ type PaymentUI = {
   cashAccount?: { name: string } | null
 }
 type CheckUI = {
-  id: string; direction: string; number: string; bank: string; dueDate: string; amount: number; status: string; statusFa: string
+  id: string; direction: string; number: string; sayadiNo?: string | null; bank: string; dueDate: string; amount: number; status: string; statusFa: string
   patient?: { firstName: string; lastName: string } | null; supplierName?: string | null; dueInDays: number; note?: string | null
 }
 type PayrollRowUI = {
@@ -758,6 +758,18 @@ function ChecksTab({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) {
   const [stats, setStats] = useState<{ receivedPending: number; issuedPending: number; bounced: number; dueSoon: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
+  const [sayadiFor, setSayadiFor] = useState<CheckUI | null>(null)
+  const [sayadiValue, setSayadiValue] = useState('')
+
+  async function saveSayadi() {
+    if (!sayadiFor) return
+    try {
+      await jsonFetch(`/api/checks/${sayadiFor.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sayadiNo: sayadiValue }) })
+      toast({ title: 'صیادی ذخیره شد ✓' })
+      setSayadiFor(null)
+      load()
+    } catch (e) { toast({ title: 'خطا', description: e instanceof Error ? e.message : '', variant: 'destructive' }) }
+  }
 
   const load = useCallback(() => {
     setLoading(true)
@@ -806,6 +818,10 @@ function ChecksTab({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) {
                       چک {faDigits(c.number)} — {c.bank} · سررسید {formatJDate(new Date(c.dueDate))}
                       {c.patient ? ` · ${c.patient.firstName} ${c.patient.lastName}` : ''}{c.supplierName ? ` · ${c.supplierName}` : ''}
                     </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {c.sayadiNo ? <>صیادی: <span dir="ltr">{faDigits(c.sayadiNo)}</span></> : <span className="text-amber-600">صیادی ثبت نشده</span>}
+                      <button className="underline underline-offset-2 mr-2 text-[11px]" onClick={() => setSayadiFor(c)}>ثبت/ویرایش صیادی</button>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold">{formatToman(c.amount)}</span>
@@ -832,6 +848,17 @@ function ChecksTab({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) {
           <CheckForm onDone={() => { setCreateOpen(false); load() }} toast={toast} />
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!sayadiFor} onOpenChange={(o) => !o && setSayadiFor(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>شمارهٔ صیادی چک {sayadiFor ? faDigits(sayadiFor.number) : ''}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input value={sayadiValue} onChange={(e) => setSayadiValue(e.target.value)} placeholder="۱۶ رقم — فقط عدد" className="rounded-xl" dir="ltr" />
+            <p className="text-[11px] text-muted-foreground">شمارهٔ صیادی روی بن‌چک درج می‌شود و در سامانهٔ صیادی بانک مرکزی قابل استعلام است.</p>
+            <Button className="w-full rounded-xl" onClick={saveSayadi}>ذخیره صیادی</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -839,6 +866,7 @@ function ChecksTab({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) {
 function CheckForm({ onDone, toast }: { onDone: () => void; toast: ReturnType<typeof useToast>['toast'] }) {
   const [direction, setDirection] = useState('RECEIVED')
   const [number, setNumber] = useState('')
+  const [sayadiNo, setSayadiNo] = useState('')
   const [bank, setBank] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [amount, setAmount] = useState('')
@@ -851,7 +879,7 @@ function CheckForm({ onDone, toast }: { onDone: () => void; toast: ReturnType<ty
     try {
       await jsonFetch('/api/checks', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ direction, number, bank, dueDate, amount: Number(amount), supplierName: direction === 'ISSUED' ? supplierName : undefined, patientId: direction === 'RECEIVED' && patientId ? patientId : undefined }),
+        body: JSON.stringify({ direction, number, sayadiNo: sayadiNo || undefined, bank, dueDate, amount: Number(amount), supplierName: direction === 'ISSUED' ? supplierName : undefined, patientId: direction === 'RECEIVED' && patientId ? patientId : undefined }),
       })
       toast({ title: 'چک ثبت شد ✓' })
       onDone()
@@ -865,6 +893,7 @@ function CheckForm({ onDone, toast }: { onDone: () => void; toast: ReturnType<ty
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><Label>شماره چک</Label><Input value={number} onChange={(e) => setNumber(e.target.value)} className="rounded-xl" /></div>
+        <div><Label>شمارهٔ صیادی (اختیاری)</Label><Input value={sayadiNo} onChange={(e) => setSayadiNo(e.target.value)} className="rounded-xl" dir="ltr" placeholder="۱۶ رقم" /></div>
         <div><Label>بانک</Label><Input value={bank} onChange={(e) => setBank(e.target.value)} className="rounded-xl" /></div>
         <div><Label>سررسید</Label><Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="rounded-xl" /></div>
         <div><Label>مبلغ</Label><Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="rounded-xl" /></div>
@@ -1266,6 +1295,201 @@ function AnalysisTab({ monthKey, branch }: { monthKey: string; branch: string })
 // بخش اصلی مالی و انبار
 // ==================================================================
 
+// ---------- اعمال هزینه و سود ----------
+
+type ProfitRowUI = {
+  id: string; number: number; date: string; patient: string | null; status: string
+  revenue: number; materialCost: number; laborCost: number; net: number; applied: boolean
+  suggestedMaterial: number; suggestedLabor: number
+}
+type ProfitData = {
+  monthKey: string
+  rows: ProfitRowUI[]
+  unapplied: number
+  totals: { revenue: number; material: number; labor: number; net: number; overhead: number; finalNet: number; suggestedMaterial: number; suggestedLabor: number; purchaseTotal: number }
+  checksSummary: { receivedPending: number; cleared: number; bounced: number; issuedPending: number }
+}
+
+/** اعمال هزینه — تفکیک جنس/دستمزد هر فاکتور و محاسبهٔ سود خالص با زنجیرهٔ کامل (خرید→جنس، کارانه→دستمزد، چک→جریان نقدی) */
+function ProfitTab({ monthKey, branch, toast }: { monthKey: string; branch: string; toast: ReturnType<typeof useToast>['toast'] }) {
+  const [data, setData] = useState<ProfitData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [applyFor, setApplyFor] = useState<ProfitRowUI | null>(null)
+  const [mCost, setMCost] = useState('')
+  const [lCost, setLCost] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    const p = new URLSearchParams({ month: monthKey })
+    if (branch) p.set('branch', branch)
+    jsonFetch<ProfitData>(`/api/finance/profit?${p.toString()}`)
+      .then(setData).catch(() => setData(null)).finally(() => setLoading(false))
+  }, [monthKey, branch])
+  useEffect(() => { load() }, [load])
+
+  function openApply(row: ProfitRowUI) {
+    setApplyFor(row)
+    setMCost(String(row.applied ? row.materialCost : row.suggestedMaterial || 0))
+    setLCost(String(row.applied ? row.laborCost : row.suggestedLabor || 0))
+  }
+
+  async function submitApply() {
+    if (!applyFor) return
+    const m = Math.round(Number(mCost || 0))
+    const l = Math.round(Number(lCost || 0))
+    if (!Number.isFinite(m) || !Number.isFinite(l) || m < 0 || l < 0) {
+      toast({ title: 'خطا', description: 'مبلغ جنس و دستمزد باید اعداد نامنفی باشند', variant: 'destructive' }); return
+    }
+    setBusy(true)
+    try {
+      await jsonFetch(`/api/invoices/${applyFor.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'applyCosts', materialCost: m, laborCost: l }),
+      })
+      toast({ title: 'هزینه اعمال شد ✓', description: `سود خالص فاکتور: ${formatToman(applyFor.revenue - m - l)}` })
+      setApplyFor(null)
+      load()
+    } catch (e) { toast({ title: 'خطا', description: e instanceof Error ? e.message : '', variant: 'destructive' }) }
+    finally { setBusy(false) }
+  }
+
+  const t = data?.totals
+  return (
+    <div className="space-y-4">
+      {t && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <StatCard title="درآمد ماه" value={formatToman(t.revenue)} tone="purple" />
+            <StatCard title="جنس (اعمال‌شده)" value={formatToman(t.material)} tone="gold" hint={t.suggestedMaterial ? `پیشنهاد: ${formatToman(t.suggestedMaterial)}` : undefined} />
+            <StatCard title="دستمزد (اعمال‌شده)" value={formatToman(t.labor)} tone="gold" hint={t.suggestedLabor ? `پیشنهاد: ${formatToman(t.suggestedLabor)}` : undefined} />
+            <StatCard title="سود خالص پرونده‌ها" value={formatToman(t.net)} tone="green" />
+            <StatCard title="هزینهٔ بالاسری ماه" value={formatToman(t.overhead)} tone="red" />
+            <StatCard title="سود نهایی ماه" value={formatToman(t.finalNet)} tone={t.finalNet >= 0 ? 'green' : 'red'} />
+          </div>
+          <div className="rounded-2xl border bg-muted/30 px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[11px] text-muted-foreground">
+            <span>🧾 فاکتور خرید ماه: <b className="text-foreground">{formatToman(t.purchaseTotal)}</b></span>
+            <span>💾 چک دریافتی در جریان: <b className="text-foreground">{formatToman(data!.checksSummary.receivedPending)}</b></span>
+            <span>✅ وصول‌شده: <b className="text-foreground">{formatToman(data!.checksSummary.cleared)}</b></span>
+            <span>⛔ برگشتی: <b className="text-foreground">{formatToman(data!.checksSummary.bounced)}</b></span>
+            <span className="text-amber-700">توضیح: چک تا «وصول» فقط جریان نقدی است و در سود حساب نمی‌شود؛ سود از درآمد فاکتور منهای جنس، دستمزد و بالاسری محاسبه می‌شود.</span>
+          </div>
+        </>
+      )}
+
+      {loading ? <LoadingBlock rows={5} /> : !data || data.rows.length === 0 ? <EmptyState text="فاکتوری در این ماه ثبت نشده است." /> : (
+        <div className="rounded-2xl border overflow-x-auto">
+          <div className="bg-muted/60 px-4 py-2 text-xs font-bold flex items-center justify-between">
+            <span>پرونده‌های ماه — تفکیک جنس / دستمزد / سود خالص</span>
+            <span className="text-[11px] text-muted-foreground font-normal">{data.unapplied > 0 ? `${faDigits(data.unapplied)} فاکتور هنوز هزینه‌اش اعمال نشده` : 'همهٔ فاکتورها اعمال هزینه شده‌اند ✓'}</span>
+          </div>
+          <div className="divide-y">
+            {data.rows.map((r) => (
+              <div key={r.id} className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold">
+                    فاکتور {faDigits(r.number)}{r.patient ? ` — ${r.patient}` : ''}
+                    <Pill label={INVOICE_STATUS_FA[r.status]?.label ?? r.status} color={INVOICE_STATUS_FA[r.status]?.color ?? 'bg-stone-100 text-stone-600 border-stone-200'} />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5" dir="ltr">{formatJDate(new Date(r.date))}</div>
+                </div>
+                <div className="flex items-center gap-3 md:gap-5 flex-wrap text-xs">
+                  <div><div className="text-[10px] text-muted-foreground">درآمد</div><div className="font-semibold">{formatToman(r.revenue)}</div></div>
+                  <div><div className="text-[10px] text-muted-foreground">جنس</div><div className={r.applied ? 'font-semibold' : 'text-muted-foreground'}>{formatToman(r.applied ? r.materialCost : r.suggestedMaterial)}{!r.applied && r.suggestedMaterial > 0 ? ' *' : ''}</div></div>
+                  <div><div className="text-[10px] text-muted-foreground">دستمزد</div><div className={r.applied ? 'font-semibold' : 'text-muted-foreground'}>{formatToman(r.applied ? r.laborCost : r.suggestedLabor)}{!r.applied && r.suggestedLabor > 0 ? ' *' : ''}</div></div>
+                  <div><div className="text-[10px] text-muted-foreground">سود خالص</div><div className={`font-bold ${r.applied ? (r.net >= 0 ? 'text-emerald-700' : 'text-red-600') : 'text-muted-foreground'}`}>{r.applied ? formatToman(r.net) : '—'}</div></div>
+                  <Button size="sm" variant={r.applied ? 'outline' : 'default'} className="rounded-lg text-xs" onClick={() => openApply(r)}>
+                    {r.applied ? 'ویرایش هزینه' : 'اعمال هزینه'}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-muted/30 px-4 py-1.5 text-[10px] text-muted-foreground">* عدد پیشنهادی: جنس از قیمت خرید اقلام انبار، دستمزد از نرخ کارانهٔ پزشک — قبل از ثبت قابل ویرایش است.</div>
+        </div>
+      )}
+
+      <Dialog open={!!applyFor} onOpenChange={(o) => !o && setApplyFor(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>اعمال هزینه — فاکتور {applyFor ? faDigits(applyFor.number) : ''}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>جنس (مصالح/مواد)</Label><Input type="number" value={mCost} onChange={(e) => setMCost(e.target.value)} className="rounded-xl" dir="ltr" /></div>
+              <div><Label>دستمزد / کارانه</Label><Input type="number" value={lCost} onChange={(e) => setLCost(e.target.value)} className="rounded-xl" dir="ltr" /></div>
+            </div>
+            {applyFor && (
+              <p className="text-[11px] text-muted-foreground">
+                پیشنهاد سیستم — جنس: {formatToman(applyFor.suggestedMaterial)} · دستمزد: {formatToman(applyFor.suggestedLabor)}
+                {` · درآمد فاکتور: ${formatToman(applyFor.revenue)}`}
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground">سود خالص = درآمد − جنس − دستمزد. جمع سود ماه در کارت «سود نهایی» با کسر هزینهٔ بالاسری به‌روز می‌شود.</p>
+            <Button className="w-full rounded-xl" onClick={submitApply} disabled={busy}>ثبت اعمال هزینه</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// ---------- فاکتورهای خرید ----------
+
+type PurchaseRowUI = {
+  id: string; date: string; supplier: string; total: number; branch: string | null
+  items: { title: string; unit: string; qty: number; unitPrice: number; total: number }[]
+}
+
+/** فاکتورهای خرید — زنجیرهٔ قیمت تمام‌شده: خرید انبار → قیمت خرید محصول → جنسِ پیشنهادی فاکتورها */
+function PurchasesTab({ monthKey, branch }: { monthKey: string; branch: string }) {
+  const [items, setItems] = useState<PurchaseRowUI[] | null>(null)
+  const [total, setTotal] = useState(0)
+
+  const load = useCallback(() => {
+    const p = new URLSearchParams({ month: monthKey })
+    if (branch) p.set('branch', branch)
+    jsonFetch<{ items: PurchaseRowUI[]; total: number }>(`/api/purchases?${p.toString()}`)
+      .then((d) => { setItems(d.items); setTotal(d.total) }).catch(() => setItems(null))
+  }, [monthKey, branch])
+  useEffect(() => { load() }, [load])
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <StatCard title="جمع فاکتورهای خرید ماه" value={formatToman(total)} tone="gold" />
+        <StatCard title="تعداد فاکتور" value={faDigits(items?.length ?? 0)} />
+        <StatCard title="اقلام ثبت‌شده" value={faDigits(items?.reduce((s, r) => s + r.items.length, 0) ?? 0)} hint="موجودی انبار با همین مبنا به‌روز می‌شود" />
+      </div>
+      <div className="rounded-2xl border bg-muted/30 px-4 py-2.5 text-[11px] text-muted-foreground">
+        زنجیرهٔ قیمت تمام‌شده: فاکتور خرید → قیمت خرید محصول در انبار → پیشنهاد «جنس» هر فاکتور فروش در تب «اعمال هزینه و سود».
+      </div>
+
+      {!items ? <LoadingBlock rows={4} /> : items.length === 0 ? <EmptyState text="فاکتور خریدی در این ماه ثبت نشده است." /> : (
+        <div className="space-y-2.5">
+          {items.map((r) => (
+            <Card key={r.id} className="rounded-2xl border">
+              <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold flex items-center gap-2">
+                    {r.supplier}
+                    {r.branch && <Pill label={r.branch} color="bg-sky-100 text-sky-800 border-sky-200" />}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">{formatJDate(new Date(r.date))}</div>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {r.items.map((i, idx) => (
+                      <Pill key={idx} label={`${i.title} ×${faDigits(i.qty)}`} color="bg-muted text-foreground border-border" />
+                    ))}
+                  </div>
+                </div>
+                <div className="text-sm font-bold">{formatToman(r.total)}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function FinanceSection() {
   const { toast } = useToast()
   const [meta, setMeta] = useState<Meta | null>(null)
@@ -1297,6 +1521,8 @@ export function FinanceSection() {
         <TabsList className="rounded-xl bg-muted flex-wrap h-auto">
           <TabsTrigger value="report" className="rounded-lg text-xs md:text-sm">داشبورد مالی</TabsTrigger>
           <TabsTrigger value="invoices" className="rounded-lg text-xs md:text-sm">فاکتورها</TabsTrigger>
+          <TabsTrigger value="profit" className="rounded-lg text-xs md:text-sm">اعمال هزینه و سود</TabsTrigger>
+          <TabsTrigger value="purchases" className="rounded-lg text-xs md:text-sm">فاکتورهای خرید</TabsTrigger>
           <TabsTrigger value="ledger" className="rounded-lg text-xs md:text-sm">دریافت و پرداخت</TabsTrigger>
           <TabsTrigger value="journal" className="rounded-lg text-xs md:text-sm">دفتر روزنامه و تراز</TabsTrigger>
           <TabsTrigger value="cash" className="rounded-lg text-xs md:text-sm">صندوق و بانک</TabsTrigger>
@@ -1310,6 +1536,8 @@ export function FinanceSection() {
 
         <TabsContent value="report" className="mt-4"><ReportTab monthKey={monthKey} branch={branch} /></TabsContent>
         <TabsContent value="invoices" className="mt-4"><InvoicesTab meta={meta} branches={branches} toast={toast} /></TabsContent>
+        <TabsContent value="profit" className="mt-4"><ProfitTab monthKey={monthKey} branch={branch} toast={toast} /></TabsContent>
+        <TabsContent value="purchases" className="mt-4"><PurchasesTab monthKey={monthKey} branch={branch} /></TabsContent>
         <TabsContent value="ledger" className="mt-4"><LedgerTab toast={toast} /></TabsContent>
         <TabsContent value="cash" className="mt-4"><CashTab toast={toast} /></TabsContent>
         <TabsContent value="checks" className="mt-4"><ChecksTab toast={toast} /></TabsContent>

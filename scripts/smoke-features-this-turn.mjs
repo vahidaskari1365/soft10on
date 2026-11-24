@@ -84,3 +84,55 @@ console.log('TRIAL:', trial.status, 'balanced=', trial.data?.balanced, 'Dr=', tr
 // ۷) دفتر معین حساب ناموجود → 404
 const missing = await api('/api/ledger?view=account&code=NOPE999', { cookie })
 console.log('MISSING ACCOUNT:', missing.status)
+
+// ۸) اعمال هزینه و سود — تفکیک جنس/دستمزد/سود خالص
+const profit = await api('/api/finance/profit', { cookie })
+const pt = profit.data?.totals ?? {}
+const appliedRow = (profit.data?.rows ?? []).find((r) => r.applied)
+const suggestedRow = (profit.data?.rows ?? []).find((r) => !r.applied && (r.suggestedMaterial > 0 || r.suggestedLabor > 0))
+console.log('PROFIT:', profit.status, 'rows=', (profit.data?.rows ?? []).length,
+  'revenue=', pt.revenue, 'material=', pt.material, 'labor=', pt.labor, 'net=', pt.net, 'finalNet=', pt.finalNet)
+console.log('PROFIT APPLIED ROW:', appliedRow ? `#${appliedRow.number} net=${appliedRow.net}` : 'none',
+  '| SUGGESTIONS:', suggestedRow ? `#${suggestedRow.number} sMat=${suggestedRow.suggestedMaterial} sLab=${suggestedRow.suggestedLabor}` : 'none')
+
+// اعمال هزینه با مبلغ بیشتر از فاکتور باید رد شود
+if (appliedRow) {
+  const badCost = await api(`/api/invoices/${appliedRow.id}`, {
+    method: 'PATCH', cookie,
+    body: { action: 'applyCosts', materialCost: appliedRow.revenue + 1000, laborCost: 0 },
+  })
+  console.log('OVER-COST REJECT:', badCost.status, String(badCost.data?.error ?? '').slice(0, 50))
+  // ثبت درست روی ردیف پیشنهادی
+  if (suggestedRow) {
+    const apply = await api(`/api/invoices/${suggestedRow.id}`, {
+      method: 'PATCH', cookie,
+      body: { action: 'applyCosts', materialCost: suggestedRow.suggestedMaterial, laborCost: suggestedRow.suggestedLabor },
+    })
+    console.log('APPLY COSTS:', apply.status, 'net=', apply.data?.net ?? apply.data?.error)
+    // برگرداندن به حالت پیشنهاد برای نمایش UI
+    await api(`/api/invoices/${suggestedRow.id}`, { method: 'PATCH', cookie, body: { action: 'applyCosts', materialCost: 0, laborCost: 0 } })
+  }
+}
+
+// ۹) فاکتورهای خرید
+const purchases = await api('/api/purchases', { cookie })
+console.log('PURCHASES:', purchases.status, 'count=', (purchases.data?.items ?? []).length, 'total=', purchases.data?.total)
+
+// ۱۰) چک با صیادی — نامعتبر رد، معتبر ثبت
+const badSayadi = await api('/api/checks', {
+  method: 'POST', cookie,
+  body: { direction: 'RECEIVED', number: 'T-0001', sayadiNo: 'abc123', bank: 'بانک تست', dueDate: new Date().toISOString(), amount: 100000 },
+})
+console.log('BAD SAYADI:', badSayadi.status, String(badSayadi.data?.error ?? '').slice(0, 45))
+const okSayadi = await api('/api/checks', {
+  method: 'POST', cookie,
+  body: { direction: 'RECEIVED', number: 'T-0002', sayadiNo: '1234 5678 9012 3456', bank: 'بانک تست', dueDate: new Date().toISOString(), amount: 150000 },
+})
+console.log('OK SAYADI:', okSayadi.status, 'sayadi=', okSayadi.data?.check?.sayadiNo ?? okSayadi.data?.error)
+if (okSayadi.status === 201) {
+  // صیادی تکی فقط با PATCH (بدون تغییر وضعیت)
+  const upd = await api(`/api/checks/${okSayadi.data.check.id}`, { method: 'PATCH', cookie, body: { sayadiNo: '' } })
+  console.log('SAYADI PATCH:', upd.status, JSON.stringify(upd.data).slice(0, 40))
+  const del = await api(`/api/checks/${okSayadi.data.check.id}`, { method: 'PATCH', cookie, body: { status: 'cancel' } })
+  console.log('SAMPLE CHECK CANCELLED:', del.status)
+}

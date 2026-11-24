@@ -371,6 +371,9 @@ model Invoice {
   subtotal  Int
   discount  Int           @default(0)
   total     Int
+  // اعمال هزینه (حسابداری managerial): تفکیک جنس و دستمزد برای محاسبهٔ سود خالص هر پرونده
+  materialCost Int        @default(0) // جنس — از قیمت خرید اقلام محصول پیشنهاد می‌شود
+  laborCost    Int        @default(0) // دستمزد/کارانهٔ پرونده
   note      String?
   items     InvoiceItem[]
   payments  Payment[]
@@ -430,6 +433,7 @@ model Check {
   branch        Branch?      @relation(fields: [branchId], references: [id])
   direction     String // RECEIVED | ISSUED
   number        String
+  sayadiNo      String? // شمارهٔ صیادی بن‌چک (رجوع به سامانهٔ صیادی بانک مرکزی)
   bank          String
   dueDate       DateTime
   amount        Int

@@ -46,10 +46,12 @@ export const GET = tenantHandler()(async (session, _request, { params }) => {
 export const PATCH = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTANT')(async (session, request, { params }) => {
   const { id } = await params
   const body = (await request.json().catch(() => ({}))) as {
-    action?: 'pay' | 'cancel' | 'reopen'
+    action?: 'pay' | 'cancel' | 'reopen' | 'applyCosts'
     amount?: number
     method?: string
     cashAccountId?: string
+    materialCost?: number
+    laborCost?: number
   }
   const idemKey = request.headers.get('idempotency-key')?.trim() || null
 
@@ -73,6 +75,27 @@ export const PATCH = tenantHandler('ADMIN', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTA
       entityId: id, branchId: invoice.branchId, clinicId: session.clinicId, meta: { number: invoice.number },
     })
     return NextResponse.json({ ok: true, status: st })
+  }
+
+  // اعمال هزینهٔ پرونده — تفکیک جنس/دستمزد برای محاسبهٔ سود خالص هر فاکتور
+  if (body.action === 'applyCosts') {
+    if (session.role !== 'ADMIN' && session.role !== 'ACCOUNTANT' && session.role !== 'MANAGER') {
+      return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
+    }
+    const m = Math.round(Number(body.materialCost ?? 0))
+    const l = Math.round(Number(body.laborCost ?? 0))
+    if (!Number.isFinite(m) || !Number.isFinite(l) || m < 0 || l < 0) {
+      return NextResponse.json({ error: 'مبلغ جنس و دستمزد باید اعداد صحیح نامنفی باشند' }, { status: 400 })
+    }
+    if (m > invoice.total || l > invoice.total) {
+      return NextResponse.json({ error: 'هزینهٔ اعمالی نمی‌تواند از مبلغ فاکتور بیشتر باشد' }, { status: 400 })
+    }
+    await db.invoice.update({ where: { id }, data: { materialCost: m, laborCost: l } })
+    await logAudit({
+      userId: session.id, userName: session.fullName, action: 'INVOICE_APPLY_COSTS', entity: 'Invoice',
+      entityId: id, branchId: invoice.branchId, clinicId: session.clinicId, meta: { number: invoice.number, materialCost: m, laborCost: l },
+    })
+    return NextResponse.json({ ok: true, materialCost: m, laborCost: l, net: invoice.total - m - l })
   }
 
   // پرداخت (کامل یا جزئی) — با اعتبارسنجی مبلغ و صندوق

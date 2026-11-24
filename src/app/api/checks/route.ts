@@ -3,6 +3,14 @@ import { tenantHandler, platformHandler } from '@/lib/tenant'
 import { db } from '@/lib/db'
 import { CHECK_STATUS } from '@/lib/accounting'
 
+/** نرمال‌سازی شمارهٔ صیادی — فقط رقم بین ۶ تا ۲۴؛ ورودی خالی/نامعتبر → null */
+function normalizeSayadi(raw?: string): string | null {
+  const digits = (raw ?? '').replace(/[\s-]/g, '')
+  if (!digits) return null
+  if (!/^\d{6,24}$/.test(digits)) return null
+  return digits
+}
+
 /** لیست چک‌های دریافتی و صادره */
 export const GET = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, request) => {
   if (session.role !== 'ADMIN' && session.role !== 'RECEPTIONIST') return NextResponse.json({ error: 'دسترسی مجاز نیست' }, { status: 403 })
@@ -30,6 +38,7 @@ export const GET = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, reques
     id: c.id,
     direction: c.direction,
     number: c.number,
+    sayadiNo: c.sayadiNo,
     bank: c.bank,
     dueDate: c.dueDate.toISOString(),
     amount: c.amount,
@@ -54,11 +63,12 @@ export const GET = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, reques
   })
 })
 
-/** ثبت چک جدید — { direction, number, bank, dueDate, amount, patientId?, supplierName?, cashAccountId?, note? } */
+/** ثبت چک جدید — { direction, number, sayadiNo?, bank, dueDate, amount, patientId?, supplierName?, cashAccountId?, note? } */
 export const POST = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, request) => {
   const body = (await request.json().catch(() => ({}))) as {
     direction?: string
     number?: string
+    sayadiNo?: string
     bank?: string
     dueDate?: string
     amount?: number
@@ -74,11 +84,16 @@ export const POST = tenantHandler('ADMIN', 'RECEPTIONIST')(async (session, reque
   if (!body.number?.trim() || !body.bank?.trim() || !body.dueDate) {
     return NextResponse.json({ error: 'شماره، بانک و سررسید الزامی است' }, { status: 400 })
   }
+  const sayadi = normalizeSayadi(body.sayadiNo)
+  if (body.sayadiNo?.trim() && sayadi === null) {
+    return NextResponse.json({ error: 'شمارهٔ صیادی نامعتبر است — فقط رقم (معمولاً ۱۶ رقم)' }, { status: 400 })
+  }
   const check = await db.check.create({
     data: {
       branchId: body.branchId || session.branchId || null,
       direction: body.direction === 'ISSUED' ? 'ISSUED' : 'RECEIVED',
       number: body.number.trim(),
+      sayadiNo: sayadi,
       bank: body.bank.trim(),
       dueDate: new Date(body.dueDate),
       amount,
